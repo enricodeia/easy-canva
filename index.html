@@ -10,12 +10,12 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.0/examples/js/loaders/RGBELoader.js"></script>
-    <!-- Google Fonts - Inter -->
+    <!-- Google Fonts - Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="dark-theme">
     <!-- Main container -->
     <div class="app-container">
         <!-- Sidebar for controls -->
@@ -97,10 +97,10 @@
                             </select>
                         </div>
 
-                        <!-- Position Controls -->
+                        <!-- Position Controls - Now vertical -->
                         <div class="property">
                             <label>Position:</label>
-                            <div class="numeric-inputs">
+                            <div class="vertical-inputs">
                                 <div class="input-group">
                                     <label for="positionX">X:</label>
                                     <input type="number" id="positionX" step="0.1" value="0">
@@ -116,10 +116,10 @@
                             </div>
                         </div>
 
-                        <!-- Rotation Controls -->
+                        <!-- Rotation Controls - Now vertical -->
                         <div class="property">
                             <label>Rotation (deg):</label>
-                            <div class="numeric-inputs">
+                            <div class="vertical-inputs">
                                 <div class="input-group">
                                     <label for="rotateX">X:</label>
                                     <input type="number" id="rotateX" step="1" value="0">
@@ -135,10 +135,10 @@
                             </div>
                         </div>
 
-                        <!-- Scale Controls -->
+                        <!-- Scale Controls - Now vertical -->
                         <div class="property scale-property">
                             <label>Scale:</label>
-                            <div class="numeric-inputs">
+                            <div class="vertical-inputs">
                                 <div class="input-group">
                                     <label for="scaleX">X:</label>
                                     <input type="number" id="scaleX" min="0.1" step="0.1" value="1">
@@ -157,32 +157,34 @@
                         <!-- Light specific controls -->
                         <div class="property light-property" style="display: none;">
                             <label>Light Parameters:</label>
-                            <div class="input-group">
-                                <label for="lightIntensity">Intensity:</label>
-                                <input type="number" id="lightIntensity" min="0" max="10" step="0.1" value="1">
-                            </div>
-                            <div class="input-group">
-                                <label for="lightDistance">Distance:</label>
-                                <input type="number" id="lightDistance" min="0" step="1" value="10">
-                            </div>
-                            <div class="input-group">
-                                <label for="lightColor">Color:</label>
-                                <div class="color-picker-container">
-                                    <input type="color" id="lightColor" value="#ffffff">
+                            <div class="vertical-inputs">
+                                <div class="input-group">
+                                    <label for="lightIntensity">Intensity:</label>
+                                    <input type="number" id="lightIntensity" min="0" max="10" step="0.1" value="1">
                                 </div>
-                            </div>
-                            <!-- Spot light specific -->
-                            <div class="input-group spot-light-prop">
-                                <label for="lightAngle">Angle (deg):</label>
-                                <input type="number" id="lightAngle" min="0" max="90" step="1" value="45">
-                            </div>
-                            <div class="input-group spot-light-prop">
-                                <label for="lightPenumbra">Penumbra:</label>
-                                <input type="number" id="lightPenumbra" min="0" max="1" step="0.05" value="0">
-                            </div>
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="lightCastShadow" checked>
-                                <label for="lightCastShadow">Cast Shadows</label>
+                                <div class="input-group">
+                                    <label for="lightDistance">Distance:</label>
+                                    <input type="number" id="lightDistance" min="0" step="1" value="10">
+                                </div>
+                                <div class="input-group">
+                                    <label for="lightColor">Color:</label>
+                                    <div class="color-picker-container">
+                                        <input type="color" id="lightColor" value="#ffffff">
+                                    </div>
+                                </div>
+                                <!-- Spot light specific -->
+                                <div class="input-group spot-light-prop">
+                                    <label for="lightAngle">Angle (deg):</label>
+                                    <input type="number" id="lightAngle" min="0" max="90" step="1" value="45">
+                                </div>
+                                <div class="input-group spot-light-prop">
+                                    <label for="lightPenumbra">Penumbra:</label>
+                                    <input type="number" id="lightPenumbra" min="0" max="1" step="0.05" value="0">
+                                </div>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="lightCastShadow" checked>
+                                    <label for="lightCastShadow">Cast Shadows</label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -206,17 +208,19 @@
 
                         <!-- Material Controls -->
                         <div class="property">
-                            <div class="input-group">
-                                <label for="metalness">Metalness:</label>
-                                <input type="number" id="metalness" min="0" max="1" step="0.1" value="0">
-                            </div>
-                            <div class="input-group">
-                                <label for="roughness">Roughness:</label>
-                                <input type="number" id="roughness" min="0" max="1" step="0.1" value="1">
-                            </div>
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="wireframe">
-                                <label for="wireframe">Wireframe</label>
+                            <div class="vertical-inputs">
+                                <div class="input-group">
+                                    <label for="metalness">Metalness:</label>
+                                    <input type="number" id="metalness" min="0" max="1" step="0.1" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="roughness">Roughness:</label>
+                                    <input type="number" id="roughness" min="0" max="1" step="0.1" value="1">
+                                </div>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="wireframe">
+                                    <label for="wireframe">Wireframe</label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -239,14 +243,16 @@
                     <div class="control-group">
                         <h3>Ambient Light</h3>
                         <div class="property">
-                            <div class="input-group">
-                                <label for="ambientIntensity">Intensity:</label>
-                                <input type="number" id="ambientIntensity" min="0" max="2" step="0.1" value="0.5">
-                            </div>
-                            <div class="input-group">
-                                <label for="ambientColor">Color:</label>
-                                <div class="color-picker-container">
-                                    <input type="color" id="ambientColor" value="#ffffff">
+                            <div class="vertical-inputs">
+                                <div class="input-group">
+                                    <label for="ambientIntensity">Intensity:</label>
+                                    <input type="number" id="ambientIntensity" min="0" max="2" step="0.1" value="0.5">
+                                </div>
+                                <div class="input-group">
+                                    <label for="ambientColor">Color:</label>
+                                    <div class="color-picker-container">
+                                        <input type="color" id="ambientColor" value="#ffffff">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -264,17 +270,19 @@
                     <div class="control-group">
                         <h3>Shadows</h3>
                         <div class="property">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="enableShadows" checked>
-                                <label for="enableShadows">Enable Shadows</label>
-                            </div>
-                            <div class="input-group">
-                                <label for="shadowQuality">Shadow Quality:</label>
-                                <select id="shadowQuality">
-                                    <option value="low">Low</option>
-                                    <option value="medium" selected>Medium</option>
-                                    <option value="high">High</option>
-                                </select>
+                            <div class="vertical-inputs">
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="enableShadows" checked>
+                                    <label for="enableShadows">Enable Shadows</label>
+                                </div>
+                                <div class="input-group">
+                                    <label for="shadowQuality">Shadow Quality:</label>
+                                    <select id="shadowQuality">
+                                        <option value="low">Low</option>
+                                        <option value="medium" selected>Medium</option>
+                                        <option value="high">High</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -293,10 +301,10 @@
                             </select>
                         </div>
                         
-                        <!-- Camera Position Controls -->
+                        <!-- Camera Position Controls - Now vertical -->
                         <div class="property">
                             <label>Position:</label>
-                            <div class="numeric-inputs">
+                            <div class="vertical-inputs">
                                 <div class="input-group">
                                     <label for="cameraX">X:</label>
                                     <input type="number" id="cameraX" step="0.5" value="0">
@@ -312,10 +320,10 @@
                             </div>
                         </div>
                         
-                        <!-- Camera Target -->
+                        <!-- Camera Target - Now vertical -->
                         <div class="property">
                             <label>Look At:</label>
-                            <div class="numeric-inputs">
+                            <div class="vertical-inputs">
                                 <div class="input-group">
                                     <label for="targetX">X:</label>
                                     <input type="number" id="targetX" step="0.5" value="0">
@@ -336,32 +344,39 @@
                     <div class="control-group">
                         <h3>Fog</h3>
                         <div class="property">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="fog">
-                                <label for="fog">Enable Fog</label>
-                            </div>
-                        </div>
-                        <div class="property">
-                            <div class="input-group">
-                                <label for="fogDensity">Fog Density:</label>
-                                <input type="number" id="fogDensity" min="0.001" max="0.1" step="0.001" value="0.01">
-                            </div>
-                            <div class="input-group">
-                                <label for="fogColor">Fog Color:</label>
-                                <div class="color-picker-container">
-                                    <input type="color" id="fogColor" value="#111111">
+                            <div class="vertical-inputs">
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="fog">
+                                    <label for="fog">Enable Fog</label>
+                                </div>
+                                <div class="input-group">
+                                    <label for="fogDensity">Fog Density:</label>
+                                    <input type="number" id="fogDensity" min="0.001" max="0.1" step="0.001" value="0.01">
+                                </div>
+                                <div class="input-group">
+                                    <label for="fogColor">Fog Color:</label>
+                                    <div class="color-picker-container">
+                                        <input type="color" id="fogColor" value="#111111">
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- HDR Environment -->
+                    <!-- HDR Environment with Delete button -->
                     <div class="control-group">
                         <h3>HDR Environment</h3>
                         <div class="property">
-                            <div class="file-input-container">
-                                <label for="hdrUpload" class="file-input-label">Load HDR Map</label>
-                                <input type="file" id="hdrUpload" accept=".hdr">
+                            <div class="hdr-container">
+                                <div class="file-input-container">
+                                    <label for="hdrUpload" class="file-input-label">Load HDR Map</label>
+                                    <input type="file" id="hdrUpload" accept=".hdr">
+                                </div>
+                                <button id="deleteHdr" class="delete-btn" disabled>Delete HDR</button>
+                            </div>
+                            <div class="hdr-preview-container" id="hdrPreview">
+                                <p class="hdr-status">No HDR Map loaded</p>
+                                <!-- Preview thumbnail will appear here -->
                             </div>
                             <div class="input-group">
                                 <label for="envMapIntensity">Intensity:</label>
@@ -374,21 +389,23 @@
                     <div class="control-group">
                         <h3>Scene Grid</h3>
                         <div class="property">
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="showGrid" checked>
-                                <label for="showGrid">Show Grid</label>
-                            </div>
-                            <div class="checkbox-group">
-                                <input type="checkbox" id="showGroundPlane" checked>
-                                <label for="showGroundPlane">Show Ground Plane</label>
-                            </div>
-                            <div class="input-group">
-                                <label for="gridSize">Grid Size:</label>
-                                <input type="number" id="gridSize" min="5" max="100" step="5" value="20">
-                            </div>
-                            <div class="input-group">
-                                <label for="gridDivisions">Grid Divisions:</label>
-                                <input type="number" id="gridDivisions" min="5" max="100" step="5" value="20">
+                            <div class="vertical-inputs">
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="showGrid" checked>
+                                    <label for="showGrid">Show Grid</label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="showGroundPlane" checked>
+                                    <label for="showGroundPlane">Show Ground Plane</label>
+                                </div>
+                                <div class="input-group">
+                                    <label for="gridSize">Grid Size:</label>
+                                    <input type="number" id="gridSize" min="5" max="100" step="5" value="20">
+                                </div>
+                                <div class="input-group">
+                                    <label for="gridDivisions">Grid Divisions:</label>
+                                    <input type="number" id="gridDivisions" min="5" max="100" step="5" value="20">
+                                </div>
                             </div>
                         </div>
                     </div>
