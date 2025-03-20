@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Scene Editor</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Import Three.js and required libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+    <!-- Sidebar for controls -->
+    <div id="sidebar">
+        <h2>3D Scene Editor</h2>
+        <p>Customize your 3D scene.</p>
+
+        <!-- Object Controls -->
+        <h3>Scene Objects</h3>
+        <button id="addObject">Add New Object</button>
+        
+        <!-- Layer Panel -->
+        <div id="layerPanel">
+            <h3>Layers</h3>
+            <ul id="objectList">
+                <!-- Objects will be listed here -->
+            </ul>
+        </div>
+
+        <!-- Import Model -->
+        <h3>Import Model</h3>
+        <input type="file" id="importModel" accept=".gltf, .glb">
+
+        <!-- Geometry Selection -->
+        <h3>Geometry Type</h3>
+        <select id="geometrySelector">
+            <option value="box">Cube</option>
+            <option value="sphere">Sphere</option>
+            <option value="cylinder">Cylinder</option>
+            <option value="torus">Torus</option>
+            <option value="plane">Plane</option>
+        </select>
+
+        <!-- Texture Control -->
+        <h3>Texture</h3>
+        <input type="file" id="textureUpload" accept="image/*">
+
+        <!-- Color Control -->
+        <h3>Object Color</h3>
+        <input type="color" id="objectColor" value="#0077ff">
+
+        <!-- Material Controls -->
+        <h3>Material</h3>
+        <label>Metalness: <input type="range" id="metalness" min="0" max="1" step="0.05" value="0"></label>
+        <label>Roughness: <input type="range" id="roughness" min="0" max="1" step="0.05" value="1"></label>
+        <label><input type="checkbox" id="wireframe"> Wireframe</label>
+
+        <!-- Position Controls -->
+        <h3>Position</h3>
+        <label>X: <input type="range" id="positionX" min="-5" max="5" step="0.1" value="0"></label>
+        <label>Y: <input type="range" id="positionY" min="-5" max="5" step="0.1" value="0"></label>
+        <label>Z: <input type="range" id="positionZ" min="-5" max="5" step="0.1" value="0"></label>
+
+        <!-- Scale Controls -->
+        <h3>Scale</h3>
+        <label>X: <input type="range" id="scaleX" min="0.1" max="5" step="0.1" value="1"></label>
+        <label>Y: <input type="range" id="scaleY" min="0.1" max="5" step="0.1" value="1"></label>
+        <label>Z: <input type="range" id="scaleZ" min="0.1" max="5" step="0.1" value="1"></label>
+
+        <!-- Rotation Controls -->
+        <h3>Rotation</h3>
+        <label>X: <input type="range" id="rotateX" min="0" max="6.28" step="0.01" value="0"></label>
+        <label>Y: <input type="range" id="rotateY" min="0" max="6.28" step="0.01" value="0"></label>
+        <label>Z: <input type="range" id="rotateZ" min="0" max="6.28" step="0.01" value="0"></label>
+
+        <!-- Lighting Controls -->
+        <h3>Lights</h3>
+        <label>Position X: <input type="range" id="lightX" min="-10" max="10" step="0.1" value="5"></label>
+        <label>Position Y: <input type="range" id="lightY" min="-10" max="10" step="0.1" value="5"></label>
+        <label>Position Z: <input type="range" id="lightZ" min="-10" max="10" step="0.1" value="5"></label>
+        <label>Intensity: <input type="range" id="lightIntensity" min="0" max="2" step="0.1" value="1"></label>
+        <label><input type="checkbox" id="enableShadows" checked> Shadows</label>
+
+        <!-- Advanced Effects -->
+        <h3>Advanced Effects</h3>
+        <label><input type="checkbox" id="bloom"> Bloom</label>
+        <label><input type="checkbox" id="fog"> Fog</label>
+
+        <!-- Camera Controls -->
+        <h3>Camera</h3>
+        <select id="cameraType">
+            <option value="perspective">Perspective</option>
+            <option value="orthographic">Orthographic</option>
+        </select>
+
+        <!-- Environment Controls -->
+        <h3>Environment</h3>
+        <input type="file" id="hdrUpload" accept=".hdr">
+
+        <!-- Animation Controls -->
+        <h3>Animation</h3>
+        <label>Speed: <input type="range" id="animationSpeed" min="0" max="5" step="0.1" value="1"></label>
+
+        <!-- Export Code -->
+        <h3>Export</h3>
+        <button id="exportScene">Download JSON</button>
+        <button id="copyCode">Copy Three.js Code</button>
+    </div>
+
+    <!-- Rendering Area -->
+    <div id="canvas-container">
+        <canvas id="three-canvas"></canvas>
+    </div>
+
+    <!-- Main script -->
+    <script src="script.js"></script>
+</body>
+</html>
