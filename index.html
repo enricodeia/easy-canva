@@ -8,24 +8,39 @@
     <!-- Import Three.js and required libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
     <!-- Sidebar for controls -->
     <div id="sidebar">
-        <h2>3D Scene Editor</h2>
+        <div class="sidebar-header">
+            <h2>3D Scene Editor</h2>
+        </div>
         
-        <!-- Export Code (Moved to top as main CTA) -->
+        <!-- Export Code (Main CTA) -->
         <div id="export-actions">
             <button id="copyCode" class="primary-btn">Copy Three.js Code</button>
             <button id="exportScene">Download JSON</button>
         </div>
         
+        <!-- Transform Controls -->
+        <div class="control-group">
+            <h3>Transform Mode</h3>
+            <div class="transform-buttons">
+                <button id="translateMode" class="transform-btn active">Move</button>
+                <button id="rotateMode" class="transform-btn">Rotate</button>
+                <button id="scaleMode" class="transform-btn">Scale</button>
+                <button id="disableTransform" class="transform-btn">View</button>
+            </div>
+        </div>
+        
         <!-- Object Management -->
         <div class="control-group">
-            <h3>Scene Objects</h3>
-            <button id="addObject">Add New Object</button>
+            <div class="group-header">
+                <h3>Scene Objects</h3>
+                <button id="addObject" class="icon-btn">+ Add</button>
+            </div>
             
             <!-- Layer Panel -->
             <div id="layerPanel">
@@ -38,12 +53,18 @@
         <!-- Import Model -->
         <div class="control-group">
             <h3>Import Model</h3>
-            <input type="file" id="importModel" accept=".gltf, .glb">
+            <div class="file-input-container">
+                <label for="importModel" class="file-input-label">Choose GLTF/GLB</label>
+                <input type="file" id="importModel" accept=".gltf, .glb">
+            </div>
         </div>
 
         <!-- Selected Object Properties -->
         <div class="control-group" id="objectProperties">
-            <h3>Object Properties</h3>
+            <div class="group-header">
+                <h3>Object Properties</h3>
+                <span class="selected-name">No selection</span>
+            </div>
             
             <!-- Geometry Selection -->
             <div class="property">
@@ -103,19 +124,19 @@
 
             <!-- Rotation Controls -->
             <div class="property">
-                <label>Rotation:</label>
+                <label>Rotation (degrees):</label>
                 <div class="numeric-inputs">
                     <div class="input-group">
                         <label for="rotateX">X:</label>
-                        <input type="number" id="rotateX" step="0.1" value="0">
+                        <input type="number" id="rotateX" step="1" value="0">
                     </div>
                     <div class="input-group">
                         <label for="rotateY">Y:</label>
-                        <input type="number" id="rotateY" step="0.1" value="0">
+                        <input type="number" id="rotateY" step="1" value="0">
                     </div>
                     <div class="input-group">
                         <label for="rotateZ">Z:</label>
-                        <input type="number" id="rotateZ" step="0.1" value="0">
+                        <input type="number" id="rotateZ" step="1" value="0">
                     </div>
                 </div>
             </div>
@@ -138,11 +159,16 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Texture Control -->
-            <div class="property">
-                <label for="textureUpload">Texture:</label>
-                <input type="file" id="textureUpload" accept="image/*">
+        </div>
+        
+        <!-- Textures Panel -->
+        <div class="control-group" id="texturesPanel">
+            <div class="group-header">
+                <h3>Textures</h3>
+                <button id="addTexture" class="icon-btn">+ Add</button>
+            </div>
+            <div id="texturesList">
+                <!-- Textures will be listed here -->
             </div>
         </div>
 
@@ -242,24 +268,14 @@
             <div class="property">
                 <div class="input-group">
                     <label for="fogDensity">Fog Density:</label>
-                    <input type="range" id="fogDensity" min="0.001" max="0.1" step="0.001" value="0.01">
-                    <span id="fogDensityValue">0.01</span>
+                    <input type="number" id="fogDensity" min="0.001" max="0.1" step="0.001" value="0.01">
                 </div>
             </div>
             <div class="property">
-                <label for="hdrUpload">HDR Environment:</label>
-                <input type="file" id="hdrUpload" accept=".hdr">
-            </div>
-        </div>
-
-        <!-- Transform Controls -->
-        <div class="control-group">
-            <h3>Transform Mode</h3>
-            <div class="transform-buttons">
-                <button id="translateMode" class="transform-btn active">Move</button>
-                <button id="rotateMode" class="transform-btn">Rotate</button>
-                <button id="scaleMode" class="transform-btn">Scale</button>
-                <button id="disableTransform" class="transform-btn">Disable</button>
+                <div class="file-input-container">
+                    <label for="hdrUpload" class="file-input-label">HDR Environment</label>
+                    <input type="file" id="hdrUpload" accept=".hdr">
+                </div>
             </div>
         </div>
     </div>
@@ -267,7 +283,7 @@
     <!-- Rendering Area -->
     <div id="canvas-container">
         <canvas id="three-canvas"></canvas>
-        <div id="scene-info">Selected: None</div>
+        <div id="scene-info">Click on objects to select them</div>
     </div>
 
     <!-- Main script -->
