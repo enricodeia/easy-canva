@@ -28,14 +28,41 @@ class SceneManager {
             scene.remove(obj.object);
             this.objects.splice(index, 1);
             if (this.selectedObject && this.selectedObject.id === id) {
-                this.selectedObject = null;
+                this.selectObject(null);
             }
             this.updateLayerPanel();
         }
     }
 
     selectObject(id) {
+        // If previously selected, deselect
+        if (this.selectedObject && transformControl) {
+            transformControl.detach();
+        }
+
+        if (id === null) {
+            this.selectedObject = null;
+            updateSceneInfo("Selected: None");
+            document.getElementById("objectProperties").classList.add("disabled");
+            return;
+        }
+
         this.selectedObject = this.objects.find(obj => obj.id === id) || null;
+        
+        if (this.selectedObject) {
+            // Attach transform controls to the selected object
+            if (transformControl && transformEnabled) {
+                transformControl.attach(this.selectedObject.object);
+            }
+            
+            // Update UI
+            document.getElementById("objectProperties").classList.remove("disabled");
+            updateSceneInfo(`Selected: ${this.selectedObject.name}`);
+        } else {
+            updateSceneInfo("Selected: None");
+            document.getElementById("objectProperties").classList.add("disabled");
+        }
+        
         this.updateLayerPanel();
         this.updateControls();
     }
@@ -77,7 +104,8 @@ class SceneManager {
             deleteBtn.textContent = '×';
             deleteBtn.title = 'Delete';
             deleteBtn.style.background = '#ff3333';
-            deleteBtn.addEventListener('click', () => {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.removeObject(obj.id);
             });
 
@@ -94,20 +122,20 @@ class SceneManager {
 
         const obj = this.selectedObject.object;
 
-        // Update position sliders
-        document.getElementById('positionX').value = obj.position.x;
-        document.getElementById('positionY').value = obj.position.y;
-        document.getElementById('positionZ').value = obj.position.z;
+        // Update position inputs
+        document.getElementById('positionX').value = obj.position.x.toFixed(2);
+        document.getElementById('positionY').value = obj.position.y.toFixed(2);
+        document.getElementById('positionZ').value = obj.position.z.toFixed(2);
 
-        // Update rotation sliders
-        document.getElementById('rotateX').value = obj.rotation.x;
-        document.getElementById('rotateY').value = obj.rotation.y;
-        document.getElementById('rotateZ').value = obj.rotation.z;
+        // Update rotation inputs - convert to degrees for better UX
+        document.getElementById('rotateX').value = (obj.rotation.x * (180/Math.PI)).toFixed(1);
+        document.getElementById('rotateY').value = (obj.rotation.y * (180/Math.PI)).toFixed(1);
+        document.getElementById('rotateZ').value = (obj.rotation.z * (180/Math.PI)).toFixed(1);
 
-        // Update scale sliders
-        document.getElementById('scaleX').value = obj.scale.x;
-        document.getElementById('scaleY').value = obj.scale.y;
-        document.getElementById('scaleZ').value = obj.scale.z;
+        // Update scale inputs
+        document.getElementById('scaleX').value = obj.scale.x.toFixed(2);
+        document.getElementById('scaleY').value = obj.scale.y.toFixed(2);
+        document.getElementById('scaleZ').value = obj.scale.z.toFixed(2);
 
         // Update material properties if applicable
         if (obj.material) {
@@ -141,15 +169,50 @@ const orthographicCamera = new THREE.OrthographicCamera(
     5, -5, 0.1, 1000
 );
 
-// Set initial camera
+// Set initial camera position and target
 let camera = perspectiveCamera;
 camera.position.set(0, 2, 5);
-camera.lookAt(0, 0, 0);
+const cameraTarget = new THREE.Vector3(0, 0, 0);
+camera.lookAt(cameraTarget);
+
+// Update camera UI inputs
+function updateCameraInputs() {
+    document.getElementById('cameraX').value = camera.position.x.toFixed(2);
+    document.getElementById('cameraY').value = camera.position.y.toFixed(2);
+    document.getElementById('cameraZ').value = camera.position.z.toFixed(2);
+    
+    document.getElementById('targetX').value = cameraTarget.x.toFixed(2);
+    document.getElementById('targetY').value = cameraTarget.y.toFixed(2);
+    document.getElementById('targetZ').value = cameraTarget.z.toFixed(2);
+}
+
+// Initial update
+updateCameraInputs();
 
 // Orbit controls for camera
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
+const orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+orbitControls.enableDamping = true;
+orbitControls.dampingFactor = 0.05;
+
+// Transform controls for object manipulation
+let transformControl = new THREE.TransformControls(camera, renderer.domElement);
+transformControl.setSize(0.75);
+transformControl.addEventListener('dragging-changed', function(event) {
+    orbitControls.enabled = !event.value;
+    
+    // Update UI when object is transformed via the control
+    if (!event.value && sceneManager.selectedObject) {
+        sceneManager.updateControls();
+    }
+});
+scene.add(transformControl);
+
+let transformEnabled = false;
+
+// Scene info update function
+function updateSceneInfo(text) {
+    document.getElementById('scene-info').textContent = text;
+}
 
 // Create scene manager
 const sceneManager = new SceneManager();
@@ -242,6 +305,11 @@ function updateGeometry(type) {
     const scale = oldObject.scale.clone();
     const material = oldObject.material.clone();
     
+    // Detach transform controls if attached
+    if (transformControl) {
+        transformControl.detach();
+    }
+    
     scene.remove(oldObject);
     
     let geometry;
@@ -264,7 +332,14 @@ function updateGeometry(type) {
     
     const objId = sceneManager.selectedObject.id;
     sceneManager.selectedObject.object = newMesh;
+    
+    // Reattach transform controls if they were enabled
+    if (transformEnabled) {
+        transformControl.attach(newMesh);
+    }
+    
     sceneManager.updateLayerPanel();
+    sceneManager.updateControls();
 }
 
 // GLTF loader for importing models
@@ -272,6 +347,42 @@ const gltfLoader = new THREE.GLTFLoader();
 
 // Texture loader
 const textureLoader = new THREE.TextureLoader();
+
+// Set up initial fog density display
+document.getElementById('fogDensityValue').textContent = document.getElementById('fogDensity').value;
+
+// Transform controls mode
+function setTransformMode(mode) {
+    // Reset active class
+    document.querySelectorAll('.transform-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    if (mode === 'disable') {
+        transformEnabled = false;
+        transformControl.detach();
+        document.getElementById('disableTransform').classList.add('active');
+        return;
+    }
+    
+    // Enable transform and set mode
+    transformEnabled = true;
+    transformControl.setMode(mode);
+    
+    // If there's a selected object, attach transform controls
+    if (sceneManager.selectedObject) {
+        transformControl.attach(sceneManager.selectedObject.object);
+    }
+    
+    // Set active class
+    document.getElementById(`${mode}Mode`).classList.add('active');
+}
+
+// Event listeners for Transform Controls
+document.getElementById('translateMode').addEventListener('click', () => setTransformMode('translate'));
+document.getElementById('rotateMode').addEventListener('click', () => setTransformMode('rotate'));
+document.getElementById('scaleMode').addEventListener('click', () => setTransformMode('scale'));
+document.getElementById('disableTransform').addEventListener('click', () => setTransformMode('disable'));
 
 // Event listeners
 document.getElementById('addObject').addEventListener('click', () => {
@@ -303,39 +414,100 @@ document.getElementById('wireframe').addEventListener('change', (e) => {
     sceneManager.selectedObject.object.material.wireframe = e.target.checked;
 });
 
-// Position, scale, and rotation controls
+// Position, scale, and rotation numeric input handlers
 ['X', 'Y', 'Z'].forEach(axis => {
     document.getElementById(`position${axis}`).addEventListener('input', (e) => {
         if (!sceneManager.selectedObject) return;
-        sceneManager.selectedObject.object.position[axis.toLowerCase()] = parseFloat(e.target.value);
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value)) {
+            sceneManager.selectedObject.object.position[axis.toLowerCase()] = value;
+            // Update transform controls if attached
+            if (transformEnabled) {
+                transformControl.updateMatrixWorld();
+            }
+        }
     });
 
     document.getElementById(`scale${axis}`).addEventListener('input', (e) => {
         if (!sceneManager.selectedObject) return;
-        sceneManager.selectedObject.object.scale[axis.toLowerCase()] = parseFloat(e.target.value);
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value) && value > 0) {
+            sceneManager.selectedObject.object.scale[axis.toLowerCase()] = value;
+            // Update transform controls if attached
+            if (transformEnabled) {
+                transformControl.updateMatrixWorld();
+            }
+        }
     });
 
     document.getElementById(`rotate${axis}`).addEventListener('input', (e) => {
         if (!sceneManager.selectedObject) return;
-        sceneManager.selectedObject.object.rotation[axis.toLowerCase()] = parseFloat(e.target.value);
+        const valueDegrees = parseFloat(e.target.value);
+        if (!isNaN(valueDegrees)) {
+            // Convert degrees to radians for Three.js
+            const valueRadians = valueDegrees * (Math.PI/180);
+            sceneManager.selectedObject.object.rotation[axis.toLowerCase()] = valueRadians;
+            // Update transform controls if attached
+            if (transformEnabled) {
+                transformControl.updateMatrixWorld();
+            }
+        }
     });
+});
+
+// Camera controls
+['X', 'Y', 'Z'].forEach(axis => {
+    document.getElementById(`camera${axis}`).addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value)) {
+            camera.position[axis.toLowerCase()] = value;
+            orbitControls.update();
+        }
+    });
+    
+    document.getElementById(`target${axis}`).addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        if (!isNaN(value)) {
+            cameraTarget[axis.toLowerCase()] = value;
+            camera.lookAt(cameraTarget);
+            orbitControls.target.copy(cameraTarget);
+            orbitControls.update();
+        }
+    });
+});
+
+// Update camera inputs when orbit controls change
+orbitControls.addEventListener('change', () => {
+    updateCameraInputs();
 });
 
 // Light controls
 document.getElementById('lightX').addEventListener('input', (e) => {
-    directionalLight.position.x = parseFloat(e.target.value);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+        directionalLight.position.x = value;
+    }
 });
 
 document.getElementById('lightY').addEventListener('input', (e) => {
-    directionalLight.position.y = parseFloat(e.target.value);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+        directionalLight.position.y = value;
+    }
 });
 
 document.getElementById('lightZ').addEventListener('input', (e) => {
-    directionalLight.position.z = parseFloat(e.target.value);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+        directionalLight.position.z = value;
+    }
 });
 
 document.getElementById('lightIntensity').addEventListener('input', (e) => {
-    directionalLight.intensity = parseFloat(e.target.value);
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+        directionalLight.intensity = value;
+    }
 });
 
 document.getElementById('enableShadows').addEventListener('change', (e) => {
@@ -364,8 +536,32 @@ document.getElementById('cameraType').addEventListener('change', (e) => {
     }
     
     camera.position.copy(position);
-    camera.lookAt(0, 0, 0);
-    controls.object = camera;
+    camera.lookAt(cameraTarget);
+    orbitControls.object = camera;
+    transformControl.camera = camera;
+    
+    updateCameraInputs();
+});
+
+// Fog controls
+document.getElementById('fog').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        const fogDensity = parseFloat(document.getElementById('fogDensity').value);
+        scene.fog = new THREE.FogExp2(scene.background.getHex(), fogDensity);
+        document.getElementById('fogDensity').disabled = false;
+    } else {
+        scene.fog = null;
+        document.getElementById('fogDensity').disabled = true;
+    }
+});
+
+document.getElementById('fogDensity').addEventListener('input', (e) => {
+    const value = parseFloat(e.target.value);
+    document.getElementById('fogDensityValue').textContent = value.toFixed(3);
+    
+    if (scene.fog && !isNaN(value)) {
+        scene.fog.density = value;
+    }
 });
 
 // Import model
@@ -401,7 +597,7 @@ document.getElementById('importModel').addEventListener('change', (event) => {
         });
         
         scene.add(model);
-        const objData = sceneManager.addObject(model, file.name);
+        const objData = sceneManager.addObject(model, file.name.split('.')[0]);
         sceneManager.selectObject(objData.id);
     }, 
     undefined, // on progress
@@ -430,16 +626,6 @@ document.getElementById('textureUpload').addEventListener('change', (event) => {
     });
 });
 
-// Effects
-document.getElementById('bloom').addEventListener('change', (e) => {
-    // Simple bloom effect simulation with exposure
-    renderer.toneMappingExposure = e.target.checked ? 1.5 : 1.0;
-});
-
-document.getElementById('fog').addEventListener('change', (e) => {
-    scene.fog = e.target.checked ? new THREE.Fog(0x111111, 5, 30) : null;
-});
-
 // Export scene as JSON
 document.getElementById('exportScene').addEventListener('click', () => {
     const sceneJson = scene.toJSON();
@@ -463,6 +649,16 @@ document.getElementById('copyCode').addEventListener('click', () => {
     code += `const scene = new THREE.Scene();\n`;
     code += `scene.background = new THREE.Color(0x${scene.background.getHexString()});\n\n`;
     
+    // Add fog if exists
+    if (scene.fog) {
+        code += `// Add fog\n`;
+        if (scene.fog.isFogExp2) {
+            code += `scene.fog = new THREE.FogExp2(0x${scene.background.getHexString()}, ${scene.fog.density});\n\n`;
+        } else {
+            code += `scene.fog = new THREE.Fog(0x${scene.background.getHexString()}, ${scene.fog.near}, ${scene.fog.far});\n\n`;
+        }
+    }
+    
     // Add camera
     code += `// Setup camera\n`;
     if (camera === perspectiveCamera) {
@@ -471,7 +667,7 @@ document.getElementById('copyCode').addEventListener('click', () => {
         code += `const camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 1000);\n`;
     }
     code += `camera.position.set(${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)});\n`;
-    code += `camera.lookAt(0, 0, 0);\n\n`;
+    code += `camera.lookAt(${cameraTarget.x.toFixed(2)}, ${cameraTarget.y.toFixed(2)}, ${cameraTarget.z.toFixed(2)});\n\n`;
     
     // Add renderer
     code += `// Setup renderer\n`;
@@ -483,7 +679,8 @@ document.getElementById('copyCode').addEventListener('click', () => {
     // Add orbit controls
     code += `// Setup controls\n`;
     code += `const controls = new THREE.OrbitControls(camera, renderer.domElement);\n`;
-    code += `controls.enableDamping = true;\n\n`;
+    code += `controls.enableDamping = true;\n`;
+    code += `controls.target.set(${cameraTarget.x.toFixed(2)}, ${cameraTarget.y.toFixed(2)}, ${cameraTarget.z.toFixed(2)});\n\n`;
     
     // Add lights
     code += `// Lighting\n`;
@@ -494,6 +691,23 @@ document.getElementById('copyCode').addEventListener('click', () => {
     code += `directionalLight.position.set(${directionalLight.position.x}, ${directionalLight.position.y}, ${directionalLight.position.z});\n`;
     code += `directionalLight.castShadow = ${directionalLight.castShadow};\n`;
     code += `scene.add(directionalLight);\n\n`;
+    
+    // Grid and ground
+    code += `// Grid and ground\n`;
+    code += `const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);\n`;
+    code += `scene.add(gridHelper);\n\n`;
+    
+    code += `const groundGeometry = new THREE.PlaneGeometry(20, 20);\n`;
+    code += `const groundMaterial = new THREE.MeshStandardMaterial({ \n`;
+    code += `  color: 0x222222,\n`;
+    code += `  roughness: 1,\n`;
+    code += `  metalness: 0\n`;
+    code += `});\n`;
+    code += `const ground = new THREE.Mesh(groundGeometry, groundMaterial);\n`;
+    code += `ground.rotation.x = -Math.PI / 2;\n`;
+    code += `ground.position.y = -0.01;\n`;
+    code += `ground.receiveShadow = true;\n`;
+    code += `scene.add(ground);\n\n`;
     
     // Add objects
     code += `// Objects\n`;
@@ -538,9 +752,9 @@ document.getElementById('copyCode').addEventListener('click', () => {
             }
             
             code += `const mesh${index} = new THREE.Mesh(geometry${index}, material${index});\n`;
-            code += `mesh${index}.position.set(${object.position.x}, ${object.position.y}, ${object.position.z});\n`;
-            code += `mesh${index}.rotation.set(${object.rotation.x}, ${object.rotation.y}, ${object.rotation.z});\n`;
-            code += `mesh${index}.scale.set(${object.scale.x}, ${object.scale.y}, ${object.scale.z});\n`;
+            code += `mesh${index}.position.set(${object.position.x.toFixed(2)}, ${object.position.y.toFixed(2)}, ${object.position.z.toFixed(2)});\n`;
+            code += `mesh${index}.rotation.set(${object.rotation.x.toFixed(2)}, ${object.rotation.y.toFixed(2)}, ${object.rotation.z.toFixed(2)});\n`;
+            code += `mesh${index}.scale.set(${object.scale.x.toFixed(2)}, ${object.scale.y.toFixed(2)}, ${object.scale.z.toFixed(2)});\n`;
             code += `mesh${index}.castShadow = ${object.castShadow};\n`;
             code += `mesh${index}.receiveShadow = ${object.receiveShadow};\n`;
             code += `scene.add(mesh${index});\n\n`;
@@ -564,7 +778,12 @@ document.getElementById('copyCode').addEventListener('click', () => {
     code += `window.addEventListener('resize', () => {\n`;
     code += `  const width = window.innerWidth;\n`;
     code += `  const height = window.innerHeight;\n`;
-    code += `  camera.aspect = width / height;\n`;
+    if (camera === perspectiveCamera) {
+        code += `  camera.aspect = width / height;\n`;
+    } else {
+        code += `  camera.left = -5 * (width / height);\n`;
+        code += `  camera.right = 5 * (width / height);\n`;
+    }
     code += `  camera.updateProjectionMatrix();\n`;
     code += `  renderer.setSize(width, height);\n`;
     code += `});\n`;
@@ -572,7 +791,15 @@ document.getElementById('copyCode').addEventListener('click', () => {
     // Copy to clipboard
     navigator.clipboard.writeText(code)
         .then(() => {
-            alert('Three.js code copied to clipboard!');
+            updateSceneInfo('Three.js code copied to clipboard!');
+            // Reset the info after 3 seconds
+            setTimeout(() => {
+                if (sceneManager.selectedObject) {
+                    updateSceneInfo(`Selected: ${sceneManager.selectedObject.name}`);
+                } else {
+                    updateSceneInfo('Selected: None');
+                }
+            }, 3000);
         })
         .catch(err => {
             console.error('Could not copy text: ', err);
@@ -583,7 +810,15 @@ document.getElementById('copyCode').addEventListener('click', () => {
             textarea.select();
             document.execCommand('copy');
             document.body.removeChild(textarea);
-            alert('Three.js code copied to clipboard!');
+            updateSceneInfo('Three.js code copied to clipboard!');
+            // Reset the info after 3 seconds
+            setTimeout(() => {
+                if (sceneManager.selectedObject) {
+                    updateSceneInfo(`Selected: ${sceneManager.selectedObject.name}`);
+                } else {
+                    updateSceneInfo('Selected: None');
+                }
+            }, 3000);
         });
 });
 
@@ -595,8 +830,8 @@ window.addEventListener('resize', () => {
     perspectiveCamera.aspect = width / height;
     perspectiveCamera.updateProjectionMatrix();
     
-    orthographicCamera.left = -5 * aspectRatio;
-    orthographicCamera.right = 5 * aspectRatio;
+    orthographicCamera.left = -5 * (width / height);
+    orthographicCamera.right = 5 * (width / height);
     orthographicCamera.top = 5;
     orthographicCamera.bottom = -5;
     orthographicCamera.updateProjectionMatrix();
@@ -604,12 +839,29 @@ window.addEventListener('resize', () => {
     renderer.setSize(width, height);
 });
 
+// Add CSS class to disable object properties panel initially
+document.getElementById('objectProperties').classList.add('disabled');
+
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
-    controls.update();
+    orbitControls.update();
     renderer.render(scene, camera);
 }
 
 // Start animation loop
 animate();
+
+// Apply some additional CSS dynamically
+const style = document.createElement('style');
+style.textContent = `
+    .disabled {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    
+    #objectProperties {
+        transition: opacity 0.3s;
+    }
+`;
+document.head.appendChild(style);
