@@ -85,8 +85,8 @@ function initEditor() {
         // Select an object in the scene
         selectObject(id) {
             // If previously selected, deselect
-            if (this.selectedObject && transformControl) {
-                transformControl.detach();
+            if (this.selectedObject) {
+                // No transform control anymore as per requirements
             }
 
             if (id === null) {
@@ -121,11 +121,6 @@ function initEditor() {
             this.selectedObject = this.objects.find(obj => obj.id === id) || null;
             
             if (this.selectedObject) {
-                // Attach transform controls to the selected object
-                if (transformControl && transformEnabled) {
-                    transformControl.attach(this.selectedObject.object);
-                }
-                
                 // Update UI based on object type
                 const objectProps = document.getElementById("objectProperties");
                 if (objectProps) objectProps.classList.remove("disabled");
@@ -247,7 +242,7 @@ function initEditor() {
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = '×';
                 deleteBtn.title = 'Delete';
-                deleteBtn.style.background = 'var(--danger-color)';
+                deleteBtn.className = 'delete-btn';
                 deleteBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.removeObject(obj.id);
@@ -373,8 +368,8 @@ function initEditor() {
                 const wireframe = document.getElementById('wireframe');
                 
                 if (objColor) objColor.value = '#' + obj.material.color.getHexString();
-                if (metalness) metalness.value = obj.material.metalness || 0;
-                if (roughness) roughness.value = obj.material.roughness || 1;
+                if (metalness) metalness.value = obj.material.metalness !== undefined ? obj.material.metalness : 0;
+                if (roughness) roughness.value = obj.material.roughness !== undefined ? obj.material.roughness : 1;
                 if (wireframe) wireframe.checked = obj.material.wireframe || false;
                 
                 // Update geometry type dropdown
@@ -429,38 +424,364 @@ function initEditor() {
             }
         }
         
-        // Texture management
+        // Add texture to selected object
         addTexture(textureFile) {
-            if (!this.selectedObject || this.selectedObject.type.includes('light')) return;
+            if (!this.selectedObject || this.selectedObject.type.includes('light')) {
+                updateSceneInfo("Cannot add texture: No object selected or selected object is a light");
+                return;
+            }
             
             const url = URL.createObjectURL(textureFile);
             const textureName = textureFile.name || 'Texture ' + (this.selectedObject.textures.length + 1);
             
-            textureLoader.load(url, (texture) => {
-                // Create texture data
-                const textureData = {
-                    id: Date.now().toString() + Math.floor(Math.random() * 1000),
-                    name: textureName,
-                    texture: texture,
-                    intensity: 1.0,
-                    opacity: 1.0,
-                    url: url,
-                    type: 'diffuse' // Default type - diffuse, normal, roughness, etc.
+            // Show loading message
+            updateSceneInfo(`Loading texture ${textureName}...`);
+            
+            textureLoader.load(url, 
+                // Success callback
+                (texture) => {
+                    // Create texture data
+                    const textureData = {
+                        id: Date.now().toString() + Math.floor(Math.random() * 1000),
+                        name: textureName,
+                        texture: texture,
+                        intensity: 1.0,
+                        opacity: 1.0,
+                        url: url,
+                        type: 'diffuse' // Default type - diffuse, normal, roughness, etc.
+                    };
+                    
+                    // Add to object's textures
+                    this.selectedObject.textures.push(textureData);
+                    
+                    // Apply texture to material
+                    this.updateObjectMaterial();
+                    
+                    // Update UI
+                    this.updateTexturesPanel();
+                    
+                    updateSceneInfo(`Texture ${textureName} added successfully`);
+                },
+                // Progress callback
+                undefined,
+                // Error callback
+                (error) => {
+                    console.error('Error loading texture:', error);
+                    updateSceneInfo(`Error loading texture: ${error.message}`);
+                    URL.revokeObjectURL(url);
+                }
+            );
+        }
+        
+        // Update textures panel in UI
+        updateTexturesPanel() {
+            const texturesList = document.getElementById('texturesList');
+            if (!texturesList) return;
+            
+            texturesList.innerHTML = '';
+            
+            if (!this.selectedObject || !this.selectedObject.textures || this.selectedObject.textures.length === 0) {
+                const noTextures = document.createElement('div');
+                noTextures.className = 'no-textures';
+                noTextures.textContent = 'No textures added. Click the + Add button to add textures.';
+                texturesList.appendChild(noTextures);
+                return;
+            }
+            
+            this.selectedObject.textures.forEach(texture => {
+                const textureItem = document.createElement('div');
+                textureItem.className = 'texture-item animate-fade-in';
+                
+                // Texture preview (use a canvas to show the actual texture)
+                const previewContainer = document.createElement('div');
+                previewContainer.className = 'texture-preview';
+                
+                // Create a mini canvas to display texture preview
+                const canvas = document.createElement('canvas');
+                canvas.width = 40;
+                canvas.height = 40;
+                const ctx = canvas.getContext('2d');
+                
+                // Create an image from the texture
+                const image = new Image();
+                image.onload = () => {
+                    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
                 };
                 
-                // Add to object's textures
-                this.selectedObject.textures.push(textureData);
+                // If texture has an image
+                if (texture.texture.image) {
+                    image.src = texture.url;
+                } else {
+                    // Fallback - draw colored square
+                    ctx.fillStyle = '#aaaaaa';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
                 
-                // Apply texture to material
-                this.updateObjectMaterial();
+                previewContainer.appendChild(canvas);
                 
-                // Update UI
-                this.updateTexturesPanel();
+                // Texture info
+                const textureInfo = document.createElement('div');
+                textureInfo.className = 'texture-info';
+                
+                const textureName = document.createElement('div');
+                textureName.className = 'texture-name';
+                textureName.textContent = texture.name;
+                
+                // Texture type selector
+                const textureTypeContainer = document.createElement('div');
+                textureTypeContainer.className = 'texture-type-container';
+                
+                const textureTypeLabel = document.createElement('label');
+                textureTypeLabel.textContent = 'Type:';
+                
+                const textureTypeSelect = document.createElement('select');
+                textureTypeSelect.className = 'texture-type';
+                
+                const textureTypes = ['diffuse', 'normal', 'roughness', 'metalness', 'emissive', 'alpha'];
+                textureTypes.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                    option.selected = texture.type === type;
+                    textureTypeSelect.appendChild(option);
+                });
+                
+                textureTypeSelect.addEventListener('change', () => {
+                    texture.type = textureTypeSelect.value;
+                    this.updateObjectMaterial();
+                });
+                
+                textureTypeContainer.appendChild(textureTypeLabel);
+                textureTypeContainer.appendChild(textureTypeSelect);
+                
+                // Texture intensity slider
+                const intensityContainer = document.createElement('div');
+                intensityContainer.className = 'texture-slider-container';
+                
+                const intensityLabel = document.createElement('label');
+                intensityLabel.textContent = 'Intensity:';
+                
+                const intensitySlider = document.createElement('input');
+                intensitySlider.type = 'range';
+                intensitySlider.min = '0';
+                intensitySlider.max = '1';
+                intensitySlider.step = '0.01';
+                intensitySlider.value = texture.intensity;
+                
+                intensitySlider.addEventListener('input', () => {
+                    texture.intensity = parseFloat(intensitySlider.value);
+                    this.updateObjectMaterial();
+                });
+                
+                intensityContainer.appendChild(intensityLabel);
+                intensityContainer.appendChild(intensitySlider);
+                
+                // Texture controls (delete button)
+                const textureControls = document.createElement('div');
+                textureControls.className = 'texture-controls';
+                
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-texture-btn';
+                deleteButton.textContent = '×';
+                deleteButton.title = 'Remove Texture';
+                
+                deleteButton.addEventListener('click', () => {
+                    const index = this.selectedObject.textures.findIndex(t => t.id === texture.id);
+                    if (index !== -1) {
+                        this.selectedObject.textures.splice(index, 1);
+                        this.updateObjectMaterial();
+                        this.updateTexturesPanel();
+                    }
+                });
+                
+                textureControls.appendChild(deleteButton);
+                
+                // Assemble the texture item
+                textureInfo.appendChild(textureName);
+                textureInfo.appendChild(textureTypeContainer);
+                textureInfo.appendChild(intensityContainer);
+                
+                textureItem.appendChild(previewContainer);
+                textureItem.appendChild(textureInfo);
+                textureItem.appendChild(textureControls);
+                
+                texturesList.appendChild(textureItem);
             });
         }
         
-        // Rest of your SceneManager methods...
-        // (updateTexturesPanel, updateObjectMaterial, handleCanvasClick, etc.)
+        // Update object material with textures
+        updateObjectMaterial() {
+            if (!this.selectedObject || this.selectedObject.type.includes('light')) return;
+            
+            const obj = this.selectedObject.object;
+            if (!obj.material) return;
+            
+            const textures = this.selectedObject.textures || [];
+            
+            // Start with a clean material (preserving color and basic properties)
+            const color = obj.material.color.clone();
+            const metalness = obj.material.metalness !== undefined ? obj.material.metalness : 0;
+            const roughness = obj.material.roughness !== undefined ? obj.material.roughness : 1;
+            const wireframe = obj.material.wireframe || false;
+            
+            // Create a new material (we use MeshStandardMaterial for PBR capabilities)
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: metalness,
+                roughness: roughness,
+                wireframe: wireframe
+            });
+            
+            // Apply environment map if scene has one
+            if (scene.environment) {
+                material.envMap = scene.environment;
+                material.envMapIntensity = 1.0;
+            }
+            
+            // Apply textures based on their type
+            textures.forEach(textureData => {
+                const texture = textureData.texture;
+                const intensity = textureData.intensity || 1.0;
+                
+                // Set proper texture settings
+                texture.encoding = THREE.sRGBEncoding;
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                
+                switch (textureData.type) {
+                    case 'diffuse':
+                        material.map = texture;
+                        material.map.encoding = THREE.sRGBEncoding;
+                        break;
+                    case 'normal':
+                        material.normalMap = texture;
+                        material.normalScale = new THREE.Vector2(intensity, intensity);
+                        break;
+                    case 'roughness':
+                        material.roughnessMap = texture;
+                        material.roughness = intensity;
+                        break;
+                    case 'metalness':
+                        material.metalnessMap = texture;
+                        material.metalness = intensity;
+                        break;
+                    case 'emissive':
+                        material.emissiveMap = texture;
+                        material.emissive = new THREE.Color(0xffffff);
+                        material.emissiveIntensity = intensity;
+                        break;
+                    case 'alpha':
+                        material.alphaMap = texture;
+                        material.transparent = true;
+                        material.opacity = intensity;
+                        break;
+                }
+            });
+            
+            // Apply the new material
+            obj.material.dispose();
+            obj.material = material;
+            
+            // Update UI
+            const objColor = document.getElementById('objectColor');
+            const metalnessInput = document.getElementById('metalness');
+            const roughnessInput = document.getElementById('roughness');
+            const wireframeInput = document.getElementById('wireframe');
+            
+            if (objColor) objColor.value = '#' + material.color.getHexString();
+            if (metalnessInput) metalnessInput.value = material.metalness;
+            if (roughnessInput) roughnessInput.value = material.roughness;
+            if (wireframeInput) wireframeInput.checked = material.wireframe;
+        }
+        
+        // Handle canvas click for object selection
+        handleCanvasClick(event) {
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            const rect = renderer.domElement.getBoundingClientRect();
+            this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // Update the picking ray
+            this.raycaster.setFromCamera(this.mouse, camera);
+            
+            // Get intersections (ignore helpers and non-mesh objects)
+            const intersectables = this.objects
+                .filter(obj => obj.visible)
+                .map(obj => obj.object);
+            
+            const intersects = this.raycaster.intersectObjects(intersectables, true);
+            
+            if (intersects.length > 0) {
+                // Find the actual top-level object that was intersected
+                let selectedObject = intersects[0].object;
+                
+                // Navigate up to find parent that is in our object list
+                while (selectedObject && !this.objects.some(obj => obj.object === selectedObject)) {
+                    selectedObject = selectedObject.parent;
+                }
+                
+                if (selectedObject) {
+                    const clickedObj = this.objects.find(obj => obj.object === selectedObject);
+                    if (clickedObj) {
+                        this.selectObject(clickedObj.id);
+                        return;
+                    }
+                }
+            }
+            
+            // If no object was clicked, deselect current selection
+            this.selectObject(null);
+        }
+        
+        // Change the geometry of selected object
+        changeGeometry(type) {
+            if (!this.selectedObject || this.selectedObject.type.includes('light')) return;
+            
+            const obj = this.selectedObject.object;
+            if (!obj.geometry) return;
+            
+            // Store current position, rotation, and scale
+            const position = obj.position.clone();
+            const rotation = obj.rotation.clone();
+            const scale = obj.scale.clone();
+            const material = obj.material.clone();
+            
+            // Create new geometry
+            let newGeometry;
+            
+            switch (type) {
+                case 'box': 
+                    newGeometry = new THREE.BoxGeometry();
+                    break;
+                case 'sphere': 
+                    newGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+                    break;
+                case 'cylinder': 
+                    newGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+                    break;
+                case 'torus': 
+                    newGeometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);
+                    break;
+                case 'plane': 
+                    newGeometry = new THREE.PlaneGeometry(1, 1);
+                    break;
+                default:
+                    return;
+            }
+            
+            // Dispose of old geometry
+            obj.geometry.dispose();
+            
+            // Apply new geometry
+            obj.geometry = newGeometry;
+            
+            // Restore position, rotation, and scale
+            obj.position.copy(position);
+            obj.rotation.copy(rotation);
+            obj.scale.copy(scale);
+            
+            updateSceneInfo(`Changed geometry to ${type}`);
+        }
     }
 
     // Initialize scene, renderer, camera, and controls
@@ -501,8 +822,8 @@ function initEditor() {
     const cameraTarget = new THREE.Vector3(0, 0, 0);
     camera.lookAt(cameraTarget);
 
-    // Update scene info function
-    function updateSceneInfo(text) {
+    // Update scene info function with error handling
+    function updateSceneInfo(text, isError = false) {
         const infoEl = document.getElementById('scene-info');
         if (infoEl) {
             infoEl.textContent = text;
@@ -511,6 +832,18 @@ function initEditor() {
             infoEl.classList.remove('animate-fade-in');
             void infoEl.offsetWidth; // Trigger reflow to restart animation
             infoEl.classList.add('animate-fade-in');
+            
+            // Apply error styling if needed
+            if (isError) {
+                infoEl.classList.add('error');
+                setTimeout(() => {
+                    infoEl.classList.remove('error');
+                }, 3000);
+            } else {
+                infoEl.classList.remove('error');
+            }
+        } else {
+            console.warn('Scene info element not found');
         }
     }
 
@@ -522,20 +855,7 @@ function initEditor() {
     orbitControls.enableDamping = true;
     orbitControls.dampingFactor = 0.05;
 
-    // Transform controls for object manipulation
-    let transformControl = new THREE.TransformControls(camera, renderer.domElement);
-    transformControl.setSize(0.75);
-    transformControl.addEventListener('dragging-changed', function(event) {
-        orbitControls.enabled = !event.value;
-        
-        // Update UI when object is transformed via the control
-        if (!event.value && sceneManager.selectedObject) {
-            sceneManager.updateObjectControls();
-        }
-    });
-    scene.add(transformControl);
-
-    let transformEnabled = false;
+    // Transform controls removed as per requirements
 
     // Setup lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -575,8 +895,9 @@ function initEditor() {
     });
 
     // Add a simple texture for the grid
-    const groundTexture = new THREE.TextureLoader();
-    groundMaterial.map = groundTexture.load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==');
+    const textureLoader = new THREE.TextureLoader();
+    const groundTexture = textureLoader.load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==');
+    groundMaterial.map = groundTexture;
     groundMaterial.map.repeat.set(gridSize, gridSize);
     groundMaterial.map.wrapS = THREE.RepeatWrapping;
     groundMaterial.map.wrapT = THREE.RepeatWrapping;
@@ -602,79 +923,66 @@ function initEditor() {
     // Add it to scene manager
     const boxObj = sceneManager.addObject(boxMesh, 'Box');
     
-    // Initialize texture loader
-    const textureLoader = new THREE.TextureLoader();
-    
-    // Set up the HDR loader
+    // RGBELoader for HDR environment maps
     const rgbeLoader = new THREE.RGBELoader();
     
     // Function to load HDR environment
     function loadHDREnvironment(file) {
-        const url = URL.createObjectURL(file);
-        
-        rgbeLoader.load(url, function(texture) {
-            texture.mapping = THREE.EquirectangularReflectionMapping;
-            scene.environment = texture;
-            scene.background = texture;
-            
-            // Update all materials to use environment map
-            sceneManager.objects.forEach(obj => {
-                if (obj.object.material && !obj.type.includes('light')) {
-                    obj.object.material.envMap = texture;
-                    obj.object.material.needsUpdate = true;
-                }
-            });
-            
-            // Clean up URL
-            URL.revokeObjectURL(url);
-            
-            updateSceneInfo('HDR environment loaded');
-        });
-    }
-    
-    // Function to set transform mode
-    function setTransformMode(mode) {
-        // Safely find and reset all transform buttons
-        const transformBtns = document.querySelectorAll('.transform-btn');
-        transformBtns.forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        if (mode === 'disable') {
-            transformEnabled = false;
-            if (transformControl) {
-                transformControl.detach();
-            }
-            // Try to set the active class
-            const disableBtn = document.getElementById('disableTransform');
-            if (disableBtn) {
-                disableBtn.classList.add('active');
-            }
+        if (!file) {
+            updateSceneInfo("No HDR file selected", true);
             return;
         }
         
-        // Enable transform and set mode
-        transformEnabled = true;
-        if (transformControl) {
-            transformControl.setMode(mode);
-        }
-        
-        // If there's a selected object, attach transform controls
-        if (sceneManager.selectedObject) {
-            transformControl.attach(sceneManager.selectedObject.object);
-        }
-        
-        // Try to set the active class
-        const modeBtn = document.getElementById(`${mode}Mode`);
-        if (modeBtn) {
-            modeBtn.classList.add('active');
+        try {
+            const url = URL.createObjectURL(file);
+            
+            updateSceneInfo("Loading HDR environment...");
+            
+            rgbeLoader.load(
+                url, 
+                function(texture) {
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    scene.environment = texture;
+                    scene.background = texture;
+                    
+                    // Update all materials to use environment map
+                    sceneManager.objects.forEach(obj => {
+                        if (obj.object.material && !obj.type.includes('light')) {
+                            obj.object.material.envMap = texture;
+                            obj.object.material.needsUpdate = true;
+                        }
+                    });
+                    
+                    // Clean up URL
+                    URL.revokeObjectURL(url);
+                    
+                    updateSceneInfo('HDR environment loaded');
+                },
+                // Progress callback
+                function(xhr) {
+                    const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+                    updateSceneInfo(`Loading HDR: ${percent}%`);
+                },
+                // Error callback
+                function(error) {
+                    console.error('Error loading HDR:', error);
+                    updateSceneInfo('Error loading HDR environment', true);
+                    URL.revokeObjectURL(url);
+                }
+            );
+        } catch (error) {
+            console.error('Error creating HDR environment:', error);
+            updateSceneInfo('Error loading HDR environment', true);
         }
     }
     
     // Function to handle tab switching
     function setupTabs() {
         const tabBtns = document.querySelectorAll('.tab-btn');
-        if (!tabBtns.length) return;
+        if (!tabBtns.length) {
+            console.warn('No tab buttons found');
+            return;
+        }
         
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -690,418 +998,825 @@ function initEditor() {
                 const tabContent = document.getElementById(`${tabId}-tab`);
                 if (tabContent) {
                     tabContent.classList.add('active');
+                } else {
+                    console.warn(`Tab content for ${tabId} not found`);
                 }
             });
         });
     }
     
-    // Create event listeners
+    // Create event listeners with proper error handling
     function setupEventListeners() {
-        // First check if elements exist before adding listeners
-        
-        // Canvas click event for object selection
-        renderer.domElement.addEventListener('click', (event) => {
-            sceneManager.handleCanvasClick(event);
-        });
-        
-        // Transform controls
-        const translateBtn = document.getElementById('translateMode');
-        const rotateBtn = document.getElementById('rotateMode');
-        const scaleBtn = document.getElementById('scaleMode');
-        const disableBtn = document.getElementById('disableTransform');
-        
-        if (translateBtn) translateBtn.addEventListener('click', () => setTransformMode('translate'));
-        if (rotateBtn) rotateBtn.addEventListener('click', () => setTransformMode('rotate'));
-        if (scaleBtn) scaleBtn.addEventListener('click', () => setTransformMode('scale'));
-        if (disableBtn) disableBtn.addEventListener('click', () => setTransformMode('disable'));
-        
-        // Add object button
-        const addObjectBtn = document.getElementById('addObject');
-        const confirmAddObjectBtn = document.getElementById('confirmAddObject');
-        const geometrySelector = document.getElementById('geometrySelector');
-        const addObjectType = document.querySelector('.add-object-type');
-        
-        if (addObjectBtn && addObjectType) {
-            addObjectBtn.addEventListener('click', () => {
-                addObjectType.style.display = 'block';
-            });
+        try {
+            // Canvas click event for object selection
+            if (renderer && renderer.domElement) {
+                renderer.domElement.addEventListener('click', (event) => {
+                    sceneManager.handleCanvasClick(event);
+                });
+            } else {
+                console.warn('Renderer or domElement not available for click events');
+            }
             
-            if (confirmAddObjectBtn && geometrySelector) {
-                confirmAddObjectBtn.addEventListener('click', () => {
-                    const type = geometrySelector.value;
-                    createNewObject(type);
-                    addObjectType.style.display = 'none';
+            // Object creation
+            const addObjectBtn = document.getElementById('addObject');
+            const confirmAddObjectBtn = document.getElementById('confirmAddObject');
+            const geometrySelector = document.getElementById('geometrySelector');
+            const addObjectType = document.querySelector('.add-object-type');
+            
+            if (addObjectBtn && addObjectType) {
+                addObjectBtn.addEventListener('click', () => {
+                    addObjectType.style.display = 'block';
+                });
+                
+                if (confirmAddObjectBtn && geometrySelector) {
+                    confirmAddObjectBtn.addEventListener('click', () => {
+                        const type = geometrySelector.value;
+                        createNewObject(type);
+                        addObjectType.style.display = 'none';
+                    });
+                } else {
+                    console.warn('Confirm add object button or geometry selector not found');
+                }
+            } else {
+                console.warn('Add object button or add object type container not found');
+            }
+            
+            // Import model button
+            const importModelBtn = document.getElementById('importModelBtn');
+            const importModel = document.getElementById('importModel');
+            
+            if (importModelBtn && importModel) {
+                importModelBtn.addEventListener('click', () => {
+                    importModel.click();
+                });
+                
+                importModel.addEventListener('change', handleModelImport);
+            } else {
+                console.warn('Import model button or file input not found');
+            }
+            
+            // Add texture button
+            const addTextureBtn = document.getElementById('addTexture');
+            if (addTextureBtn) {
+                addTextureBtn.addEventListener('click', () => {
+                    if (!sceneManager.selectedObject) {
+                        updateSceneInfo('Please select an object first', true);
+                        return;
+                    }
+                    
+                    // Create a file input for texture upload
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.style.display = 'none';
+                    document.body.appendChild(input);
+                    
+                    input.addEventListener('change', (e) => {
+                        if (e.target.files.length) {
+                            sceneManager.addTexture(e.target.files[0]);
+                        }
+                        document.body.removeChild(input);
+                    });
+                    
+                    input.click();
+                });
+            } else {
+                console.warn('Add texture button not found');
+            }
+            
+            // HDR environment map upload
+            const hdrUpload = document.getElementById('hdrUpload');
+            if (hdrUpload) {
+                hdrUpload.addEventListener('change', (e) => {
+                    if (e.target.files.length) {
+                        loadHDREnvironment(e.target.files[0]);
+                    }
+                });
+            } else {
+                console.warn('HDR upload input not found');
+            }
+            
+            // Change geometry type
+            const changeGeometryType = document.getElementById('changeGeometryType');
+            if (changeGeometryType) {
+                changeGeometryType.addEventListener('change', (e) => {
+                    if (sceneManager.selectedObject && !sceneManager.selectedObject.type.includes('light')) {
+                        sceneManager.changeGeometry(e.target.value);
+                    }
+                });
+            } else {
+                console.warn('Change geometry type selector not found');
+            }
+            
+            // Set up other control events
+            setupControlEvents();
+            
+        } catch (error) {
+            console.error('Error setting up event listeners:', error);
+            updateSceneInfo('Error setting up application controls', true);
+        }
+    }
+    
+    // Function to set up control event listeners with error handling
+    function setupControlEvents() {
+        try {
+            // Material controls
+            const objectColor = document.getElementById('objectColor');
+            const metalness = document.getElementById('metalness');
+            const roughness = document.getElementById('roughness');
+            const wireframe = document.getElementById('wireframe');
+            
+            if (objectColor) {
+                objectColor.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject) return;
+                    if (sceneManager.selectedObject.object.material) {
+                        sceneManager.selectedObject.object.material.color.set(e.target.value);
+                    }
                 });
             }
-        }
-        
-        // Import model button
-        const importModelBtn = document.getElementById('importModelBtn');
-        const importModel = document.getElementById('importModel');
-        
-        if (importModelBtn && importModel) {
-            importModelBtn.addEventListener('click', () => {
-                importModel.click();
-            });
             
-            importModel.addEventListener('change', handleModelImport);
-        }
-        
-        // Add texture button
-        const addTextureBtn = document.getElementById('addTexture');
-        if (addTextureBtn) {
-            addTextureBtn.addEventListener('click', () => {
-                if (!sceneManager.selectedObject) {
-                    updateSceneInfo('Please select an object first');
-                    return;
-                }
-                
-                // Create a file input for texture upload
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*';
-                input.style.display = 'none';
-                document.body.appendChild(input);
-                
-                input.addEventListener('change', (e) => {
-                    if (e.target.files.length) {
-                        sceneManager.addTexture(e.target.files[0]);
-                    }
-                    document.body.removeChild(input);
-                });
-                
-                input.click();
-            });
-        }
-        
-        // HDR environment map upload
-        const hdrUpload = document.getElementById('hdrUpload');
-        if (hdrUpload) {
-            hdrUpload.addEventListener('change', (e) => {
-                if (e.target.files.length) {
-                    loadHDREnvironment(e.target.files[0]);
-                }
-            });
-        }
-        
-        // Set up other event listeners for all controls...
-        setupControlEvents();
-    }
-    
-    // Function to set up control event listeners
-    function setupControlEvents() {
-        // Material controls
-        const objectColor = document.getElementById('objectColor');
-        const metalness = document.getElementById('metalness');
-        const roughness = document.getElementById('roughness');
-        const wireframe = document.getElementById('wireframe');
-        
-        if (objectColor) {
-            objectColor.addEventListener('input', (e) => {
-                if (!sceneManager.selectedObject) return;
-                if (sceneManager.selectedObject.object.material) {
-                    sceneManager.selectedObject.object.material.color.set(e.target.value);
-                }
-            });
-        }
-        
-        if (metalness) {
-            metalness.addEventListener('input', (e) => {
-                if (!sceneManager.selectedObject) return;
-                if (sceneManager.selectedObject.object.material) {
-                    sceneManager.selectedObject.object.material.metalness = parseFloat(e.target.value);
-                }
-            });
-        }
-        
-        if (roughness) {
-            roughness.addEventListener('input', (e) => {
-                if (!sceneManager.selectedObject) return;
-                if (sceneManager.selectedObject.object.material) {
-                    sceneManager.selectedObject.object.material.roughness = parseFloat(e.target.value);
-                }
-            });
-        }
-        
-        if (wireframe) {
-            wireframe.addEventListener('change', (e) => {
-                if (!sceneManager.selectedObject) return;
-                if (sceneManager.selectedObject.object.material) {
-                    sceneManager.selectedObject.object.material.wireframe = e.target.checked;
-                }
-            });
-        }
-        
-        // Position, rotation, scale controls
-        ['X', 'Y', 'Z'].forEach(axis => {
-            const positionInput = document.getElementById(`position${axis}`);
-            const rotateInput = document.getElementById(`rotate${axis}`);
-            const scaleInput = document.getElementById(`scale${axis}`);
-            
-            if (positionInput) {
-                positionInput.addEventListener('input', (e) => {
+            if (metalness) {
+                metalness.addEventListener('input', (e) => {
                     if (!sceneManager.selectedObject) return;
+                    if (sceneManager.selectedObject.object.material) {
+                        sceneManager.selectedObject.object.material.metalness = parseFloat(e.target.value);
+                    }
+                });
+            }
+            
+            if (roughness) {
+                roughness.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject) return;
+                    if (sceneManager.selectedObject.object.material) {
+                        sceneManager.selectedObject.object.material.roughness = parseFloat(e.target.value);
+                    }
+                });
+            }
+            
+            if (wireframe) {
+                wireframe.addEventListener('change', (e) => {
+                    if (!sceneManager.selectedObject) return;
+                    if (sceneManager.selectedObject.object.material) {
+                        sceneManager.selectedObject.object.material.wireframe = e.target.checked;
+                    }
+                });
+            }
+            
+            // Position, rotation, scale controls
+            ['X', 'Y', 'Z'].forEach(axis => {
+                const positionInput = document.getElementById(`position${axis}`);
+                const rotateInput = document.getElementById(`rotate${axis}`);
+                const scaleInput = document.getElementById(`scale${axis}`);
+                
+                if (positionInput) {
+                    positionInput.addEventListener('input', (e) => {
+                        if (!sceneManager.selectedObject) return;
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value)) {
+                            sceneManager.selectedObject.object.position[axis.toLowerCase()] = value;
+                        }
+                    });
+                }
+                
+                if (rotateInput) {
+                    rotateInput.addEventListener('input', (e) => {
+                        if (!sceneManager.selectedObject) return;
+                        const valueDegrees = parseFloat(e.target.value);
+                        if (!isNaN(valueDegrees)) {
+                            // Convert degrees to radians for Three.js
+                            const valueRadians = valueDegrees * (Math.PI/180);
+                            sceneManager.selectedObject.object.rotation[axis.toLowerCase()] = valueRadians;
+                        }
+                    });
+                }
+                
+                if (scaleInput) {
+                    scaleInput.addEventListener('input', (e) => {
+                        if (!sceneManager.selectedObject) return;
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value) && value > 0) {
+                            sceneManager.selectedObject.object.scale[axis.toLowerCase()] = value;
+                        }
+                    });
+                }
+            });
+            
+            // Light controls
+            const lightIntensity = document.getElementById('lightIntensity');
+            const lightColor = document.getElementById('lightColor');
+            const lightDistance = document.getElementById('lightDistance');
+            const lightCastShadow = document.getElementById('lightCastShadow');
+            const lightAngle = document.getElementById('lightAngle');
+            const lightPenumbra = document.getElementById('lightPenumbra');
+            
+            if (lightIntensity) {
+                lightIntensity.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject || !sceneManager.selectedObject.type.includes('light')) return;
                     const value = parseFloat(e.target.value);
                     if (!isNaN(value)) {
-                        sceneManager.selectedObject.object.position[axis.toLowerCase()] = value;
-                        if (transformEnabled && transformControl) {
-                            transformControl.updateMatrixWorld();
+                        sceneManager.selectedObject.object.intensity = value;
+                    }
+                });
+            }
+            
+            if (lightColor) {
+                lightColor.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject || !sceneManager.selectedObject.type.includes('light')) return;
+                    sceneManager.selectedObject.object.color.set(e.target.value);
+                    sceneManager.updateLightsPanel();
+                });
+            }
+            
+            if (lightDistance) {
+                lightDistance.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject || !sceneManager.selectedObject.type.includes('light')) return;
+                    if (sceneManager.selectedObject.object.distance !== undefined) {
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value)) {
+                            sceneManager.selectedObject.object.distance = value;
                         }
                     }
                 });
             }
             
-            if (rotateInput) {
-                rotateInput.addEventListener('input', (e) => {
-                    if (!sceneManager.selectedObject) return;
+            if (lightCastShadow) {
+                lightCastShadow.addEventListener('change', (e) => {
+                    if (!sceneManager.selectedObject || !sceneManager.selectedObject.type.includes('light')) return;
+                    if (sceneManager.selectedObject.object.castShadow !== undefined) {
+                        sceneManager.selectedObject.object.castShadow = e.target.checked;
+                    }
+                });
+            }
+            
+            if (lightAngle) {
+                lightAngle.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject || sceneManager.selectedObject.type !== 'light-spot') return;
                     const valueDegrees = parseFloat(e.target.value);
                     if (!isNaN(valueDegrees)) {
-                        // Convert degrees to radians for Three.js
-                        const valueRadians = valueDegrees * (Math.PI/180);
-                        sceneManager.selectedObject.object.rotation[axis.toLowerCase()] = valueRadians;
-                        if (transformEnabled && transformControl) {
-                            transformControl.updateMatrixWorld();
-                        }
+                        const valueRadians = THREE.MathUtils.degToRad(valueDegrees);
+                        sceneManager.selectedObject.object.angle = valueRadians;
                     }
                 });
             }
             
-            if (scaleInput) {
-                scaleInput.addEventListener('input', (e) => {
-                    if (!sceneManager.selectedObject) return;
-                    const value = parseFloat(e.target.value);
-                    if (!isNaN(value) && value > 0) {
-                        sceneManager.selectedObject.object.scale[axis.toLowerCase()] = value;
-                        if (transformEnabled && transformControl) {
-                            transformControl.updateMatrixWorld();
-                        }
-                    }
-                });
-            }
-        });
-        
-        // Camera controls
-        ['X', 'Y', 'Z'].forEach(axis => {
-            const cameraInput = document.getElementById(`camera${axis}`);
-            const targetInput = document.getElementById(`target${axis}`);
-            
-            if (cameraInput) {
-                cameraInput.addEventListener('input', (e) => {
+            if (lightPenumbra) {
+                lightPenumbra.addEventListener('input', (e) => {
+                    if (!sceneManager.selectedObject || sceneManager.selectedObject.type !== 'light-spot') return;
                     const value = parseFloat(e.target.value);
                     if (!isNaN(value)) {
-                        camera.position[axis.toLowerCase()] = value;
-                        orbitControls.update();
+                        sceneManager.selectedObject.object.penumbra = value;
                     }
                 });
             }
             
-            if (targetInput) {
-                targetInput.addEventListener('input', (e) => {
-                    const value = parseFloat(e.target.value);
-                    if (!isNaN(value)) {
-                        cameraTarget[axis.toLowerCase()] = value;
-                        camera.lookAt(cameraTarget);
-                        orbitControls.target.copy(cameraTarget);
-                        orbitControls.update();
+            // Camera type toggle
+            const cameraType = document.getElementById('cameraType');
+            if (cameraType) {
+                cameraType.addEventListener('change', (e) => {
+                    if (e.target.value === 'perspective') {
+                        camera = perspectiveCamera;
+                    } else {
+                        camera = orthographicCamera;
+                    }
+                    
+                    // Update camera position and controls
+                    camera.position.copy(orbitControls.object.position);
+                    camera.lookAt(orbitControls.target);
+                    orbitControls.object = camera;
+                    
+                    updateSceneInfo(`Switched to ${e.target.value} camera`);
+                });
+            }
+            
+            // Camera controls
+            ['X', 'Y', 'Z'].forEach(axis => {
+                const cameraInput = document.getElementById(`camera${axis}`);
+                const targetInput = document.getElementById(`target${axis}`);
+                
+                if (cameraInput) {
+                    cameraInput.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value)) {
+                            camera.position[axis.toLowerCase()] = value;
+                            orbitControls.update();
+                        }
+                    });
+                }
+                
+                if (targetInput) {
+                    targetInput.addEventListener('input', (e) => {
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value)) {
+                            cameraTarget[axis.toLowerCase()] = value;
+                            camera.lookAt(cameraTarget);
+                            orbitControls.target.copy(cameraTarget);
+                            orbitControls.update();
+                        }
+                    });
+                }
+            });
+            
+            // Fog controls
+            const fogToggle = document.getElementById('fog');
+            const fogDensity = document.getElementById('fogDensity');
+            const fogColor = document.getElementById('fogColor');
+            
+            if (fogToggle) {
+                fogToggle.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        const density = fogDensity ? parseFloat(fogDensity.value) : 0.01;
+                        const color = fogColor ? new THREE.Color(fogColor.value) : new THREE.Color(0x111111);
+                        scene.fog = new THREE.FogExp2(color, density);
+                    } else {
+                        scene.fog = null;
                     }
                 });
             }
-        });
-        
-        // Export buttons
-        const exportSceneBtn = document.getElementById('exportScene');
-        const copyCodeBtn = document.getElementById('copyCode');
-        
-        if (exportSceneBtn) {
-            exportSceneBtn.addEventListener('click', exportScene);
-        }
-        
-        if (copyCodeBtn) {
-            copyCodeBtn.addEventListener('click', copyThreeJsCode);
+            
+            if (fogDensity) {
+                fogDensity.addEventListener('input', (e) => {
+                    if (scene.fog && scene.fog instanceof THREE.FogExp2) {
+                        scene.fog.density = parseFloat(e.target.value);
+                    }
+                });
+            }
+            
+            if (fogColor) {
+                fogColor.addEventListener('input', (e) => {
+                    if (scene.fog) {
+                        scene.fog.color.set(e.target.value);
+                    }
+                });
+            }
+            
+            // Grid and ground controls
+            const showGrid = document.getElementById('showGrid');
+            const showGroundPlane = document.getElementById('showGroundPlane');
+            const gridSizeInput = document.getElementById('gridSize');
+            const gridDivisionsInput = document.getElementById('gridDivisions');
+            
+            if (showGrid) {
+                showGrid.addEventListener('change', (e) => {
+                    gridHelper.visible = e.target.checked;
+                });
+            }
+            
+            if (showGroundPlane) {
+                showGroundPlane.addEventListener('change', (e) => {
+                    ground.visible = e.target.checked;
+                });
+            }
+            
+            // Ambient light controls
+            const ambientIntensity = document.getElementById('ambientIntensity');
+            const ambientColor = document.getElementById('ambientColor');
+            
+            if (ambientIntensity) {
+                ambientIntensity.addEventListener('input', (e) => {
+                    ambientLight.intensity = parseFloat(e.target.value);
+                });
+            }
+            
+            if (ambientColor) {
+                ambientColor.addEventListener('input', (e) => {
+                    ambientLight.color.set(e.target.value);
+                });
+            }
+            
+            // Shadow controls
+            const enableShadows = document.getElementById('enableShadows');
+            const shadowQuality = document.getElementById('shadowQuality');
+            
+            if (enableShadows) {
+                enableShadows.addEventListener('change', (e) => {
+                    renderer.shadowMap.enabled = e.target.checked;
+                    
+                    // Update all objects to match shadow setting
+                    sceneManager.objects.forEach(obj => {
+                        if (obj.object.isMesh) {
+                            obj.object.castShadow = e.target.checked;
+                            obj.object.receiveShadow = e.target.checked;
+                        } else if (obj.type.includes('light')) {
+                            if (obj.object.castShadow !== undefined) {
+                                obj.object.castShadow = e.target.checked;
+                            }
+                        }
+                    });
+                });
+            }
+            
+            if (shadowQuality) {
+                shadowQuality.addEventListener('change', (e) => {
+                    let mapSize;
+                    switch (e.target.value) {
+                        case 'low':
+                            mapSize = 512;
+                            break;
+                        case 'medium':
+                            mapSize = 1024;
+                            break;
+                        case 'high':
+                            mapSize = 2048;
+                            break;
+                        default:
+                            mapSize = 1024;
+                    }
+                    
+                    // Update shadow map quality for all lights
+                    sceneManager.lights.forEach(light => {
+                        if (light.object.shadow) {
+                            light.object.shadow.mapSize.width = mapSize;
+                            light.object.shadow.mapSize.height = mapSize;
+                        }
+                    });
+                    
+                    updateSceneInfo(`Shadow quality set to ${e.target.value}`);
+                });
+            }
+            
+            // Environment map intensity
+            const envMapIntensity = document.getElementById('envMapIntensity');
+            if (envMapIntensity) {
+                envMapIntensity.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value)) {
+                        // Apply to all materials
+                        sceneManager.objects.forEach(obj => {
+                            if (obj.object.material && !obj.type.includes('light')) {
+                                obj.object.material.envMapIntensity = value;
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Export buttons
+            const exportSceneBtn = document.getElementById('exportScene');
+            const copyCodeBtn = document.getElementById('copyCode');
+            
+            if (exportSceneBtn) {
+                exportSceneBtn.addEventListener('click', exportScene);
+            } else {
+                console.warn('Export scene button not found');
+            }
+            
+            if (copyCodeBtn) {
+                copyCodeBtn.addEventListener('click', generateAndCopyCode);
+            } else {
+                console.warn('Copy code button not found');
+            }
+            
+        } catch (error) {
+            console.error('Error setting up control events:', error);
+            updateSceneInfo('Error setting up control events', true);
         }
     }
     
     // Function to create a new object
     function createNewObject(type) {
-        let object;
-        
-        if (type.startsWith('light-')) {
-            // Create a light
-            switch (type) {
-                case 'light-point':
-                    const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-                    pointLight.position.set(0, 2, 0);
-                    pointLight.castShadow = true;
-                    object = pointLight;
-                    scene.add(object);
-                    sceneManager.addLight(object, 'Point Light', 'light-point');
-                    break;
-                case 'light-spot':
-                    const spotLight = new THREE.SpotLight(0xffffff, 1, 100, Math.PI/4, 0.2);
-                    spotLight.position.set(0, 5, 0);
-                    spotLight.castShadow = true;
-                    object = spotLight;
-                    scene.add(object);
-                    sceneManager.addLight(object, 'Spot Light', 'light-spot');
-                    break;
-                case 'light-area':
-                    // Three.js doesn't have an area light in the core library,
-                    // but we can simulate it with a RectAreaLight from the examples
-                    const rectLight = new THREE.DirectionalLight(0xffffff, 1);
-                    rectLight.position.set(0, 5, 0);
-                    rectLight.castShadow = true;
-                    object = rectLight;
-                    scene.add(object);
-                    sceneManager.addLight(object, 'Area Light', 'light-area');
-                    break;
+        try {
+            let object;
+            
+            if (type.startsWith('light-')) {
+                // Create a light
+                switch (type) {
+                    case 'light-point':
+                        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+                        pointLight.position.set(0, 2, 0);
+                        pointLight.castShadow = true;
+                        object = pointLight;
+                        scene.add(object);
+                        sceneManager.addLight(object, 'Point Light', 'light-point');
+                        break;
+                    case 'light-spot':
+                        const spotLight = new THREE.SpotLight(0xffffff, 1, 100, Math.PI/4, 0.2);
+                        spotLight.position.set(0, 5, 0);
+                        spotLight.castShadow = true;
+                        object = spotLight;
+                        scene.add(object);
+                        sceneManager.addLight(object, 'Spot Light', 'light-spot');
+                        break;
+                    case 'light-area':
+                        // Three.js doesn't have an area light in the core library,
+                        // but we can simulate it with a DirectionalLight
+                        const rectLight = new THREE.DirectionalLight(0xffffff, 1);
+                        rectLight.position.set(0, 5, 0);
+                        rectLight.castShadow = true;
+                        object = rectLight;
+                        scene.add(object);
+                        sceneManager.addLight(object, 'Directional Light', 'light-area');
+                        break;
+                }
+                
+                updateSceneInfo(`Added new ${type.replace('light-', '')} light`);
+            } else {
+                // Create a mesh
+                let geometry;
+                
+                switch (type) {
+                    case 'box': 
+                        geometry = new THREE.BoxGeometry();
+                        break;
+                    case 'sphere': 
+                        geometry = new THREE.SphereGeometry(0.5, 32, 32);
+                        break;
+                    case 'cylinder': 
+                        geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+                        break;
+                    case 'torus': 
+                        geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);
+                        break;
+                    case 'plane': 
+                        geometry = new THREE.PlaneGeometry(1, 1);
+                        break;
+                    default:
+                        geometry = new THREE.BoxGeometry();
+                }
+                
+                const material = new THREE.MeshStandardMaterial({
+                    color: 0x0077ff,
+                    metalness: 0,
+                    roughness: 1
+                });
+                
+                object = new THREE.Mesh(geometry, material);
+                object.castShadow = true;
+                object.receiveShadow = true;
+                
+                scene.add(object);
+                
+                // Add to scene manager
+                const objData = sceneManager.addObject(
+                    object, 
+                    type.charAt(0).toUpperCase() + type.slice(1)
+                );
+                
+                // Select the new object
+                sceneManager.selectObject(objData.id);
+                
+                updateSceneInfo(`Added new ${type}`);
             }
-        } else {
-            // Create a mesh
-            let geometry;
             
-            switch (type) {
-                case 'box': 
-                    geometry = new THREE.BoxGeometry();
-                    break;
-                case 'sphere': 
-                    geometry = new THREE.SphereGeometry(0.5, 32, 32);
-                    break;
-                case 'cylinder': 
-                    geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
-                    break;
-                case 'torus': 
-                    geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);
-                    break;
-                case 'plane': 
-                    geometry = new THREE.PlaneGeometry(1, 1);
-                    break;
-                default:
-                    geometry = new THREE.BoxGeometry();
-            }
-            
-            const material = new THREE.MeshStandardMaterial({
-                color: 0x0077ff,
-                metalness: 0,
-                roughness: 1
-            });
-            
-            object = new THREE.Mesh(geometry, material);
-            object.castShadow = true;
-            object.receiveShadow = true;
-            
-            scene.add(object);
-            
-            // Add to scene manager
-            const objData = sceneManager.addObject(
-                object, 
-                type.charAt(0).toUpperCase() + type.slice(1)
-            );
-            
-            // Select the new object
-            sceneManager.selectObject(objData.id);
+            return object;
+        } catch (error) {
+            console.error('Error creating new object:', error);
+            updateSceneInfo(`Error creating ${type}`, true);
+            return null;
         }
-        
-        return object;
     }
     
     // Function to handle model import
     function handleModelImport(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        const url = URL.createObjectURL(file);
-        
-        // Create GLTF loader
-        const gltfLoader = new THREE.GLTFLoader();
-        
-        gltfLoader.load(url, (gltf) => {
-            const model = gltf.scene;
+        try {
+            const file = event.target.files[0];
+            if (!file) return;
             
-            // Center the model
-            const box = new THREE.Box3().setFromObject(model);
-            const center = box.getCenter(new THREE.Vector3());
-            model.position.sub(center);
+            updateSceneInfo(`Importing model: ${file.name}...`);
             
-            // Normalize scale
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 2) {
-                const scale = 2 / maxDim;
-                model.scale.set(scale, scale, scale);
-            }
+            const url = URL.createObjectURL(file);
             
-            // Apply shadows
-            model.traverse((node) => {
-                if (node.isMesh) {
-                    node.castShadow = true;
-                    node.receiveShadow = true;
+            // Create GLTF loader
+            const gltfLoader = new THREE.GLTFLoader();
+            
+            gltfLoader.load(url, 
+                // Success callback
+                (gltf) => {
+                    const model = gltf.scene;
+                    
+                    // Center the model
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    
+                    // Normalize scale
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    if (maxDim > 2) {
+                        const scale = 2 / maxDim;
+                        model.scale.set(scale, scale, scale);
+                    }
+                    
+                    // Apply shadows
+                    model.traverse((node) => {
+                        if (node.isMesh) {
+                            node.castShadow = true;
+                            node.receiveShadow = true;
+                        }
+                    });
+                    
+                    scene.add(model);
+                    
+                    // Add to scene manager
+                    const objData = sceneManager.addObject(
+                        model, 
+                        file.name.split('.')[0] || 'Imported Model'
+                    );
+                    
+                    // Select the new model
+                    sceneManager.selectObject(objData.id);
+                    
+                    // Clean up URL
+                    URL.revokeObjectURL(url);
+                    
+                    updateSceneInfo(`Model ${file.name} imported successfully`);
+                }, 
+                // Progress callback
+                (xhr) => {
+                    const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+                    updateSceneInfo(`Loading model: ${percent}%`);
+                },
+                // Error callback
+                (error) => {
+                    console.error('Error loading model:', error);
+                    updateSceneInfo('Error loading model', true);
+                    URL.revokeObjectURL(url);
                 }
-            });
-            
-            scene.add(model);
-            
-            // Add to scene manager
-            const objData = sceneManager.addObject(
-                model, 
-                file.name.split('.')[0] || 'Imported Model'
             );
             
-            // Select the new model
-            sceneManager.selectObject(objData.id);
-            
-            // Clean up URL
-            URL.revokeObjectURL(url);
-        }, 
-        undefined,  // onProgress
-        (error) => {
-            console.error('Error loading model:', error);
-            updateSceneInfo('Error loading model');
-        });
+            // Reset file input
+            event.target.value = '';
+        } catch (error) {
+            console.error('Error handling model import:', error);
+            updateSceneInfo('Error importing model', true);
+        }
     }
     
     // Function to export scene as JSON
     function exportScene() {
-        const sceneJson = scene.toJSON();
-        const jsonString = JSON.stringify(sceneJson, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'scene.json';
-        a.click();
-        
-        URL.revokeObjectURL(url);
-        
-        updateSceneInfo('Scene exported as JSON');
+        try {
+            const sceneJson = scene.toJSON();
+            const jsonString = JSON.stringify(sceneJson, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'scene.json';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+            
+            updateSceneInfo('Scene exported as JSON');
+        } catch (error) {
+            console.error('Error exporting scene:', error);
+            updateSceneInfo('Error exporting scene', true);
+        }
     }
     
-    // Function to copy Three.js code
-    function copyThreeJsCode() {
-        // Generate code...
-        let code = `// Three.js Scene exported from 3D Scene Editor\n\n`;
-        code += `// Create scene\n`;
-        code += `const scene = new THREE.Scene();\n`;
-        code += `scene.background = new THREE.Color(0x${scene.background instanceof THREE.Color ? scene.background.getHexString() : '111111'});\n\n`;
-        
-        // Add camera, lights, objects, etc.
-        
-        // Copy to clipboard
-        navigator.clipboard.writeText(code)
-            .then(() => {
-                updateSceneInfo('Three.js code copied to clipboard!');
-            })
-            .catch(err => {
-                console.error('Could not copy text: ', err);
-                // Fallback
-                const textarea = document.createElement('textarea');
-                textarea.value = code;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                updateSceneInfo('Three.js code copied to clipboard!');
+    // Function to generate and copy Three.js code
+    function generateAndCopyCode() {
+        try {
+            // Generate code for scene setup
+            let code = `// Three.js Scene exported from 3D Scene Editor\n\n`;
+            code += `// Create scene\n`;
+            code += `const scene = new THREE.Scene();\n`;
+            code += `scene.background = new THREE.Color(0x${scene.background.getHexString()});\n\n`;
+            
+            // Add renderer code
+            code += `// Renderer setup\n`;
+            code += `const renderer = new THREE.WebGLRenderer({ antialias: true });\n`;
+            code += `renderer.setSize(window.innerWidth, window.innerHeight);\n`;
+            code += `renderer.setPixelRatio(window.devicePixelRatio);\n`;
+            code += `renderer.shadowMap.enabled = ${renderer.shadowMap.enabled};\n`;
+            code += `renderer.shadowMap.type = THREE.PCFSoftShadowMap;\n`;
+            code += `renderer.toneMapping = THREE.ACESFilmicToneMapping;\n`;
+            code += `renderer.toneMappingExposure = 1;\n`;
+            code += `document.body.appendChild(renderer.domElement);\n\n`;
+            
+            // Add camera code
+            code += `// Camera setup\n`;
+            if (camera === perspectiveCamera) {
+                code += `const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);\n`;
+            } else {
+                code += `const camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 1000);\n`;
+            }
+            code += `camera.position.set(${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)});\n`;
+            code += `camera.lookAt(${cameraTarget.x.toFixed(2)}, ${cameraTarget.y.toFixed(2)}, ${cameraTarget.z.toFixed(2)});\n\n`;
+            
+            // Add orbit controls
+            code += `// Orbit controls\n`;
+            code += `const controls = new THREE.OrbitControls(camera, renderer.domElement);\n`;
+            code += `controls.enableDamping = true;\n`;
+            code += `controls.dampingFactor = 0.05;\n\n`;
+            
+            // Add ambient light
+            code += `// Ambient light\n`;
+            code += `const ambientLight = new THREE.AmbientLight(0x${ambientLight.color.getHexString()}, ${ambientLight.intensity});\n`;
+            code += `scene.add(ambientLight);\n\n`;
+            
+            // Add all other objects
+            code += `// Scene objects\n`;
+            sceneManager.objects.forEach(obj => {
+                if (obj.type.includes('light')) {
+                    // Add light code
+                    const light = obj.object;
+                    
+                    code += `// ${obj.name}\n`;
+                    if (obj.type === 'light-directional') {
+                        code += `const ${obj.id} = new THREE.DirectionalLight(0x${light.color.getHexString()}, ${light.intensity});\n`;
+                    } else if (obj.type === 'light-point') {
+                        code += `const ${obj.id} = new THREE.PointLight(0x${light.color.getHexString()}, ${light.intensity}, ${light.distance});\n`;
+                    } else if (obj.type === 'light-spot') {
+                        code += `const ${obj.id} = new THREE.SpotLight(0x${light.color.getHexString()}, ${light.intensity}, ${light.distance}, ${light.angle.toFixed(4)}, ${light.penumbra});\n`;
+                    }
+                    
+                    code += `${obj.id}.position.set(${light.position.x.toFixed(2)}, ${light.position.y.toFixed(2)}, ${light.position.z.toFixed(2)});\n`;
+                    
+                    if (light.castShadow) {
+                        code += `${obj.id}.castShadow = true;\n`;
+                        if (light.shadow) {
+                            code += `${obj.id}.shadow.mapSize.width = ${light.shadow.mapSize.width};\n`;
+                            code += `${obj.id}.shadow.mapSize.height = ${light.shadow.mapSize.height};\n`;
+                        }
+                    }
+                    
+                    code += `scene.add(${obj.id});\n\n`;
+                } else {
+                    // Add mesh code
+                    const mesh = obj.object;
+                    
+                    code += `// ${obj.name}\n`;
+                    code += `const ${obj.id}_material = new THREE.MeshStandardMaterial({\n`;
+                    code += `  color: 0x${mesh.material.color.getHexString()},\n`;
+                    code += `  metalness: ${mesh.material.metalness},\n`;
+                    code += `  roughness: ${mesh.material.roughness},\n`;
+                    
+                    if (mesh.material.wireframe) {
+                        code += `  wireframe: true,\n`;
+                    }
+                    
+                    code += `});\n`;
+                    
+                    // Determine geometry type
+                    if (mesh.geometry instanceof THREE.BoxGeometry) {
+                        code += `const ${obj.id}_geometry = new THREE.BoxGeometry();\n`;
+                    } else if (mesh.geometry instanceof THREE.SphereGeometry) {
+                        code += `const ${obj.id}_geometry = new THREE.SphereGeometry(0.5, 32, 32);\n`;
+                    } else if (mesh.geometry instanceof THREE.CylinderGeometry) {
+                        code += `const ${obj.id}_geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);\n`;
+                    } else if (mesh.geometry instanceof THREE.TorusGeometry) {
+                        code += `const ${obj.id}_geometry = new THREE.TorusGeometry(0.5, 0.2, 16, 32);\n`;
+                    } else if (mesh.geometry instanceof THREE.PlaneGeometry) {
+                        code += `const ${obj.id}_geometry = new THREE.PlaneGeometry(1, 1);\n`;
+                    } else {
+                        code += `// Complex or custom geometry\n`;
+                        code += `const ${obj.id}_geometry = new THREE.BoxGeometry();\n`;
+                    }
+                    
+                    code += `const ${obj.id} = new THREE.Mesh(${obj.id}_geometry, ${obj.id}_material);\n`;
+                    code += `${obj.id}.position.set(${mesh.position.x.toFixed(2)}, ${mesh.position.y.toFixed(2)}, ${mesh.position.z.toFixed(2)});\n`;
+                    code += `${obj.id}.rotation.set(${mesh.rotation.x.toFixed(4)}, ${mesh.rotation.y.toFixed(4)}, ${mesh.rotation.z.toFixed(4)});\n`;
+                    code += `${obj.id}.scale.set(${mesh.scale.x.toFixed(2)}, ${mesh.scale.y.toFixed(2)}, ${mesh.scale.z.toFixed(2)});\n`;
+                    
+                    if (mesh.castShadow) {
+                        code += `${obj.id}.castShadow = true;\n`;
+                    }
+                    
+                    if (mesh.receiveShadow) {
+                        code += `${obj.id}.receiveShadow = true;\n`;
+                    }
+                    
+                    code += `scene.add(${obj.id});\n\n`;
+                }
             });
+            
+            // Add animation loop
+            code += `// Animation loop\n`;
+            code += `function animate() {\n`;
+            code += `  requestAnimationFrame(animate);\n`;
+            code += `  controls.update();\n`;
+            code += `  renderer.render(scene, camera);\n`;
+            code += `}\n\n`;
+            code += `animate();\n\n`;
+            
+            // Add window resize handler
+            code += `// Window resize handler\n`;
+            code += `window.addEventListener('resize', () => {\n`;
+            code += `  camera.aspect = window.innerWidth / window.innerHeight;\n`;
+            code += `  camera.updateProjectionMatrix();\n`;
+            code += `  renderer.setSize(window.innerWidth, window.innerHeight);\n`;
+            code += `});\n`;
+            
+            // Copy to clipboard
+            navigator.clipboard.writeText(code)
+                .then(() => {
+                    updateSceneInfo('Three.js code copied to clipboard!');
+                })
+                .catch(err => {
+                    console.error('Could not copy text: ', err);
+                    // Fallback
+                    const textarea = document.createElement('textarea');
+                    textarea.value = code;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    updateSceneInfo('Three.js code copied to clipboard!');
+                });
+        } catch (error) {
+            console.error('Error generating code:', error);
+            updateSceneInfo('Error generating Three.js code', true);
+        }
     }
     
     // Animation loop
@@ -1116,13 +1831,18 @@ function initEditor() {
         const width = window.innerWidth - 320;
         const height = window.innerHeight;
         
-        perspectiveCamera.aspect = width / height;
-        perspectiveCamera.updateProjectionMatrix();
+        // Update camera aspect ratio and projection matrix
+        if (camera === perspectiveCamera) {
+            perspectiveCamera.aspect = width / height;
+            perspectiveCamera.updateProjectionMatrix();
+        } else {
+            // Update orthographic camera frustum
+            orthographicCamera.left = -5 * (width / height);
+            orthographicCamera.right = 5 * (width / height);
+            orthographicCamera.updateProjectionMatrix();
+        }
         
-        orthographicCamera.left = -5 * (width / height);
-        orthographicCamera.right = 5 * (width / height);
-        orthographicCamera.updateProjectionMatrix();
-        
+        // Update renderer size
         renderer.setSize(width, height);
     });
     
@@ -1132,9 +1852,6 @@ function initEditor() {
     
     // Select the initial object
     sceneManager.selectObject(boxObj.id);
-    
-    // Enable translate mode by default
-    setTransformMode('translate');
     
     // Start animation loop
     animate();
