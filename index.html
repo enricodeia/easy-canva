@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Scene Editor</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Import Three.js and required libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <!-- Import Three.js and required libraries from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r132/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.0/examples/js/loaders/RGBELoader.js"></script>
+    <!-- Google Fonts - Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Main container -->
@@ -39,16 +41,6 @@
                 
                 <!-- Objects Tab -->
                 <div class="tab-content active" id="objects-tab">
-                    <!-- Transform Controls -->
-                    <div class="control-group">
-                        <h3>Transform</h3>
-                        <div class="transform-buttons">
-                            <button id="translateMode" class="transform-btn">Move</button>
-                            <button id="rotateMode" class="transform-btn">Rotate</button>
-                            <button id="scaleMode" class="transform-btn">Scale</button>
-                        </div>
-                    </div>
-                    
                     <!-- Object Management -->
                     <div class="control-group">
                         <div class="group-header">
@@ -87,7 +79,7 @@
                     </div>
 
                     <!-- Selected Object Properties -->
-                    <div class="control-group" id="objectProperties">
+                    <div class="control-group disabled" id="objectProperties">
                         <div class="group-header">
                             <h3>Object Properties</h3>
                             <span class="selected-name">No selection</span>
@@ -199,7 +191,7 @@
                 <!-- Materials Tab -->
                 <div class="tab-content" id="materials-tab">
                     <!-- Material properties -->
-                    <div class="control-group" id="materialProperties">
+                    <div class="control-group disabled" id="materialProperties">
                         <div class="group-header">
                             <h3>Basic Material</h3>
                         </div>
@@ -230,7 +222,7 @@
                     </div>
                     
                     <!-- Textures Panel -->
-                    <div class="control-group" id="texturesPanel">
+                    <div class="control-group disabled" id="texturesPanel">
                         <div class="group-header">
                             <h3>Textures</h3>
                             <button id="addTexture" class="icon-btn">+ Add</button>
@@ -260,7 +252,7 @@
                         </div>
                     </div>
                     
-                    <!-- Default Directional Light -->
+                    <!-- Scene Lights -->
                     <div class="control-group">
                         <h3>Scene Lights</h3>
                         <div id="lightsManagerPanel">
