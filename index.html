@@ -10,280 +10,405 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
 </head>
 <body>
-    <!-- Sidebar for controls -->
-    <div id="sidebar">
-        <div class="sidebar-header">
-            <h2>3D Scene Editor</h2>
-        </div>
-        
-        <!-- Export Code (Main CTA) -->
-        <div id="export-actions">
-            <button id="copyCode" class="primary-btn">Copy Three.js Code</button>
-            <button id="exportScene">Download JSON</button>
-        </div>
-        
-        <!-- Transform Controls -->
-        <div class="control-group">
-            <h3>Transform Mode</h3>
-            <div class="transform-buttons">
-                <button id="translateMode" class="transform-btn active">Move</button>
-                <button id="rotateMode" class="transform-btn">Rotate</button>
-                <button id="scaleMode" class="transform-btn">Scale</button>
-                <button id="disableTransform" class="transform-btn">View</button>
-            </div>
-        </div>
-        
-        <!-- Object Management -->
-        <div class="control-group">
-            <div class="group-header">
-                <h3>Scene Objects</h3>
-                <button id="addObject" class="icon-btn">+ Add</button>
+    <!-- Main container -->
+    <div class="app-container">
+        <!-- Sidebar for controls -->
+        <div id="sidebar">
+            <div class="sidebar-header">
+                <h2>3D Scene Editor</h2>
             </div>
             
-            <!-- Layer Panel -->
-            <div id="layerPanel">
-                <ul id="objectList">
-                    <!-- Objects will be listed here -->
-                </ul>
-            </div>
-        </div>
-
-        <!-- Import Model -->
-        <div class="control-group">
-            <h3>Import Model</h3>
-            <div class="file-input-container">
-                <label for="importModel" class="file-input-label">Choose GLTF/GLB</label>
-                <input type="file" id="importModel" accept=".gltf, .glb">
-            </div>
-        </div>
-
-        <!-- Selected Object Properties -->
-        <div class="control-group" id="objectProperties">
-            <div class="group-header">
-                <h3>Object Properties</h3>
-                <span class="selected-name">No selection</span>
+            <!-- Export Code (Main CTA) -->
+            <div id="export-actions">
+                <button id="copyCode" class="primary-btn">Copy Three.js Code</button>
+                <button id="exportScene">Download JSON</button>
             </div>
             
-            <!-- Geometry Selection -->
-            <div class="property">
-                <label for="geometrySelector">Geometry Type:</label>
-                <select id="geometrySelector">
-                    <option value="box">Cube</option>
-                    <option value="sphere">Sphere</option>
-                    <option value="cylinder">Cylinder</option>
-                    <option value="torus">Torus</option>
-                    <option value="plane">Plane</option>
-                </select>
-            </div>
+            <!-- Main tabs navigation -->
+            <div class="tabs-container">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="objects">Objects</button>
+                    <button class="tab-btn" data-tab="materials">Materials</button>
+                    <button class="tab-btn" data-tab="lighting">Lighting</button>
+                    <button class="tab-btn" data-tab="environment">Environment</button>
+                </div>
+                
+                <!-- Objects Tab -->
+                <div class="tab-content active" id="objects-tab">
+                    <!-- Transform Controls -->
+                    <div class="control-group">
+                        <h3>Transform</h3>
+                        <div class="transform-buttons">
+                            <button id="translateMode" class="transform-btn">Move</button>
+                            <button id="rotateMode" class="transform-btn">Rotate</button>
+                            <button id="scaleMode" class="transform-btn">Scale</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Object Management -->
+                    <div class="control-group">
+                        <div class="group-header">
+                            <h3>Scene Objects</h3>
+                            <div class="btn-group">
+                                <button id="addObject" class="icon-btn">+ Add</button>
+                                <button id="importModelBtn" class="icon-btn">Import</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Add geometry type selection dropdown -->
+                        <div class="property add-object-type" style="display: none;">
+                            <label for="geometrySelector">Add Object Type:</label>
+                            <select id="geometrySelector">
+                                <option value="box">Cube</option>
+                                <option value="sphere">Sphere</option>
+                                <option value="cylinder">Cylinder</option>
+                                <option value="torus">Torus</option>
+                                <option value="plane">Plane</option>
+                                <option value="light-point">Point Light</option>
+                                <option value="light-spot">Spot Light</option>
+                                <option value="light-area">Area Light</option>
+                            </select>
+                            <button id="confirmAddObject" class="confirm-btn">Create</button>
+                        </div>
+                        
+                        <!-- Hidden file input for model import -->
+                        <input type="file" id="importModel" accept=".gltf, .glb" style="display: none;">
+                        
+                        <!-- Layer Panel -->
+                        <div id="layerPanel">
+                            <ul id="objectList">
+                                <!-- Objects will be listed here -->
+                            </ul>
+                        </div>
+                    </div>
 
-            <!-- Color Control -->
-            <div class="property">
-                <label for="objectColor">Color:</label>
-                <div class="color-picker-container">
-                    <input type="color" id="objectColor" value="#0077ff">
-                </div>
-            </div>
+                    <!-- Selected Object Properties -->
+                    <div class="control-group" id="objectProperties">
+                        <div class="group-header">
+                            <h3>Object Properties</h3>
+                            <span class="selected-name">No selection</span>
+                        </div>
+                        
+                        <!-- Geometry Selection (only shown for mesh objects) -->
+                        <div class="property geometry-property">
+                            <label for="changeGeometryType">Geometry Type:</label>
+                            <select id="changeGeometryType">
+                                <option value="box">Cube</option>
+                                <option value="sphere">Sphere</option>
+                                <option value="cylinder">Cylinder</option>
+                                <option value="torus">Torus</option>
+                                <option value="plane">Plane</option>
+                            </select>
+                        </div>
 
-            <!-- Material Controls -->
-            <div class="property">
-                <label>Material:</label>
-                <div class="input-group">
-                    <label for="metalness">Metalness:</label>
-                    <input type="number" id="metalness" min="0" max="1" step="0.1" value="0">
-                </div>
-                <div class="input-group">
-                    <label for="roughness">Roughness:</label>
-                    <input type="number" id="roughness" min="0" max="1" step="0.1" value="1">
-                </div>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="wireframe">
-                    <label for="wireframe">Wireframe</label>
-                </div>
-            </div>
+                        <!-- Position Controls -->
+                        <div class="property">
+                            <label>Position:</label>
+                            <div class="numeric-inputs">
+                                <div class="input-group">
+                                    <label for="positionX">X:</label>
+                                    <input type="number" id="positionX" step="0.1" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="positionY">Y:</label>
+                                    <input type="number" id="positionY" step="0.1" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="positionZ">Z:</label>
+                                    <input type="number" id="positionZ" step="0.1" value="0">
+                                </div>
+                            </div>
+                        </div>
 
-            <!-- Position Controls -->
-            <div class="property">
-                <label>Position:</label>
-                <div class="numeric-inputs">
-                    <div class="input-group">
-                        <label for="positionX">X:</label>
-                        <input type="number" id="positionX" step="0.1" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label for="positionY">Y:</label>
-                        <input type="number" id="positionY" step="0.1" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label for="positionZ">Z:</label>
-                        <input type="number" id="positionZ" step="0.1" value="0">
+                        <!-- Rotation Controls -->
+                        <div class="property">
+                            <label>Rotation (deg):</label>
+                            <div class="numeric-inputs">
+                                <div class="input-group">
+                                    <label for="rotateX">X:</label>
+                                    <input type="number" id="rotateX" step="1" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="rotateY">Y:</label>
+                                    <input type="number" id="rotateY" step="1" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="rotateZ">Z:</label>
+                                    <input type="number" id="rotateZ" step="1" value="0">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scale Controls -->
+                        <div class="property scale-property">
+                            <label>Scale:</label>
+                            <div class="numeric-inputs">
+                                <div class="input-group">
+                                    <label for="scaleX">X:</label>
+                                    <input type="number" id="scaleX" min="0.1" step="0.1" value="1">
+                                </div>
+                                <div class="input-group">
+                                    <label for="scaleY">Y:</label>
+                                    <input type="number" id="scaleY" min="0.1" step="0.1" value="1">
+                                </div>
+                                <div class="input-group">
+                                    <label for="scaleZ">Z:</label>
+                                    <input type="number" id="scaleZ" min="0.1" step="0.1" value="1">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Light specific controls -->
+                        <div class="property light-property" style="display: none;">
+                            <label>Light Parameters:</label>
+                            <div class="input-group">
+                                <label for="lightIntensity">Intensity:</label>
+                                <input type="number" id="lightIntensity" min="0" max="10" step="0.1" value="1">
+                            </div>
+                            <div class="input-group">
+                                <label for="lightDistance">Distance:</label>
+                                <input type="number" id="lightDistance" min="0" step="1" value="10">
+                            </div>
+                            <div class="input-group">
+                                <label for="lightColor">Color:</label>
+                                <div class="color-picker-container">
+                                    <input type="color" id="lightColor" value="#ffffff">
+                                </div>
+                            </div>
+                            <!-- Spot light specific -->
+                            <div class="input-group spot-light-prop">
+                                <label for="lightAngle">Angle (deg):</label>
+                                <input type="number" id="lightAngle" min="0" max="90" step="1" value="45">
+                            </div>
+                            <div class="input-group spot-light-prop">
+                                <label for="lightPenumbra">Penumbra:</label>
+                                <input type="number" id="lightPenumbra" min="0" max="1" step="0.05" value="0">
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="lightCastShadow" checked>
+                                <label for="lightCastShadow">Cast Shadows</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+                
+                <!-- Materials Tab -->
+                <div class="tab-content" id="materials-tab">
+                    <!-- Material properties -->
+                    <div class="control-group" id="materialProperties">
+                        <div class="group-header">
+                            <h3>Basic Material</h3>
+                        </div>
+                        
+                        <!-- Color Control -->
+                        <div class="property">
+                            <label for="objectColor">Base Color:</label>
+                            <div class="color-picker-container">
+                                <input type="color" id="objectColor" value="#0077ff">
+                            </div>
+                        </div>
 
-            <!-- Rotation Controls -->
-            <div class="property">
-                <label>Rotation (degrees):</label>
-                <div class="numeric-inputs">
-                    <div class="input-group">
-                        <label for="rotateX">X:</label>
-                        <input type="number" id="rotateX" step="1" value="0">
+                        <!-- Material Controls -->
+                        <div class="property">
+                            <div class="input-group">
+                                <label for="metalness">Metalness:</label>
+                                <input type="number" id="metalness" min="0" max="1" step="0.1" value="0">
+                            </div>
+                            <div class="input-group">
+                                <label for="roughness">Roughness:</label>
+                                <input type="number" id="roughness" min="0" max="1" step="0.1" value="1">
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="wireframe">
+                                <label for="wireframe">Wireframe</label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="input-group">
-                        <label for="rotateY">Y:</label>
-                        <input type="number" id="rotateY" step="1" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label for="rotateZ">Z:</label>
-                        <input type="number" id="rotateZ" step="1" value="0">
+                    
+                    <!-- Textures Panel -->
+                    <div class="control-group" id="texturesPanel">
+                        <div class="group-header">
+                            <h3>Textures</h3>
+                            <button id="addTexture" class="icon-btn">+ Add</button>
+                        </div>
+                        <div id="texturesList">
+                            <!-- Textures will be listed here -->
+                        </div>
                     </div>
                 </div>
-            </div>
+                
+                <!-- Lighting Tab -->
+                <div class="tab-content" id="lighting-tab">
+                    <!-- Ambient Light -->
+                    <div class="control-group">
+                        <h3>Ambient Light</h3>
+                        <div class="property">
+                            <div class="input-group">
+                                <label for="ambientIntensity">Intensity:</label>
+                                <input type="number" id="ambientIntensity" min="0" max="2" step="0.1" value="0.5">
+                            </div>
+                            <div class="input-group">
+                                <label for="ambientColor">Color:</label>
+                                <div class="color-picker-container">
+                                    <input type="color" id="ambientColor" value="#ffffff">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Default Directional Light -->
+                    <div class="control-group">
+                        <h3>Scene Lights</h3>
+                        <div id="lightsManagerPanel">
+                            <!-- Lights will be listed here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Shadows -->
+                    <div class="control-group">
+                        <h3>Shadows</h3>
+                        <div class="property">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="enableShadows" checked>
+                                <label for="enableShadows">Enable Shadows</label>
+                            </div>
+                            <div class="input-group">
+                                <label for="shadowQuality">Shadow Quality:</label>
+                                <select id="shadowQuality">
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Environment Tab -->
+                <div class="tab-content" id="environment-tab">
+                    <!-- Camera Controls -->
+                    <div class="control-group">
+                        <h3>Camera</h3>
+                        <div class="property">
+                            <label for="cameraType">Type:</label>
+                            <select id="cameraType">
+                                <option value="perspective">Perspective</option>
+                                <option value="orthographic">Orthographic</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Camera Position Controls -->
+                        <div class="property">
+                            <label>Position:</label>
+                            <div class="numeric-inputs">
+                                <div class="input-group">
+                                    <label for="cameraX">X:</label>
+                                    <input type="number" id="cameraX" step="0.5" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="cameraY">Y:</label>
+                                    <input type="number" id="cameraY" step="0.5" value="2">
+                                </div>
+                                <div class="input-group">
+                                    <label for="cameraZ">Z:</label>
+                                    <input type="number" id="cameraZ" step="0.5" value="5">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Camera Target -->
+                        <div class="property">
+                            <label>Look At:</label>
+                            <div class="numeric-inputs">
+                                <div class="input-group">
+                                    <label for="targetX">X:</label>
+                                    <input type="number" id="targetX" step="0.5" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="targetY">Y:</label>
+                                    <input type="number" id="targetY" step="0.5" value="0">
+                                </div>
+                                <div class="input-group">
+                                    <label for="targetZ">Z:</label>
+                                    <input type="number" id="targetZ" step="0.5" value="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- Scale Controls -->
-            <div class="property">
-                <label>Scale:</label>
-                <div class="numeric-inputs">
-                    <div class="input-group">
-                        <label for="scaleX">X:</label>
-                        <input type="number" id="scaleX" min="0.1" step="0.1" value="1">
+                    <!-- Fog Controls -->
+                    <div class="control-group">
+                        <h3>Fog</h3>
+                        <div class="property">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="fog">
+                                <label for="fog">Enable Fog</label>
+                            </div>
+                        </div>
+                        <div class="property">
+                            <div class="input-group">
+                                <label for="fogDensity">Fog Density:</label>
+                                <input type="number" id="fogDensity" min="0.001" max="0.1" step="0.001" value="0.01">
+                            </div>
+                            <div class="input-group">
+                                <label for="fogColor">Fog Color:</label>
+                                <div class="color-picker-container">
+                                    <input type="color" id="fogColor" value="#111111">
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="input-group">
-                        <label for="scaleY">Y:</label>
-                        <input type="number" id="scaleY" min="0.1" step="0.1" value="1">
+                    
+                    <!-- HDR Environment -->
+                    <div class="control-group">
+                        <h3>HDR Environment</h3>
+                        <div class="property">
+                            <div class="file-input-container">
+                                <label for="hdrUpload" class="file-input-label">Load HDR Map</label>
+                                <input type="file" id="hdrUpload" accept=".hdr">
+                            </div>
+                            <div class="input-group">
+                                <label for="envMapIntensity">Intensity:</label>
+                                <input type="number" id="envMapIntensity" min="0" max="5" step="0.1" value="1">
+                            </div>
+                        </div>
                     </div>
-                    <div class="input-group">
-                        <label for="scaleZ">Z:</label>
-                        <input type="number" id="scaleZ" min="0.1" step="0.1" value="1">
+                    
+                    <!-- Grid and Ground -->
+                    <div class="control-group">
+                        <h3>Scene Grid</h3>
+                        <div class="property">
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="showGrid" checked>
+                                <label for="showGrid">Show Grid</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" id="showGroundPlane" checked>
+                                <label for="showGroundPlane">Show Ground Plane</label>
+                            </div>
+                            <div class="input-group">
+                                <label for="gridSize">Grid Size:</label>
+                                <input type="number" id="gridSize" min="5" max="100" step="5" value="20">
+                            </div>
+                            <div class="input-group">
+                                <label for="gridDivisions">Grid Divisions:</label>
+                                <input type="number" id="gridDivisions" min="5" max="100" step="5" value="20">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Textures Panel -->
-        <div class="control-group" id="texturesPanel">
-            <div class="group-header">
-                <h3>Textures</h3>
-                <button id="addTexture" class="icon-btn">+ Add</button>
-            </div>
-            <div id="texturesList">
-                <!-- Textures will be listed here -->
-            </div>
-        </div>
 
-        <!-- Camera Controls -->
-        <div class="control-group">
-            <h3>Camera</h3>
-            <div class="property">
-                <label for="cameraType">Type:</label>
-                <select id="cameraType">
-                    <option value="perspective">Perspective</option>
-                    <option value="orthographic">Orthographic</option>
-                </select>
-            </div>
-            
-            <!-- Camera Position Controls -->
-            <div class="property">
-                <label>Position:</label>
-                <div class="numeric-inputs">
-                    <div class="input-group">
-                        <label for="cameraX">X:</label>
-                        <input type="number" id="cameraX" step="0.5" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label for="cameraY">Y:</label>
-                        <input type="number" id="cameraY" step="0.5" value="2">
-                    </div>
-                    <div class="input-group">
-                        <label for="cameraZ">Z:</label>
-                        <input type="number" id="cameraZ" step="0.5" value="5">
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Camera Target -->
-            <div class="property">
-                <label>Look At:</label>
-                <div class="numeric-inputs">
-                    <div class="input-group">
-                        <label for="targetX">X:</label>
-                        <input type="number" id="targetX" step="0.5" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label for="targetY">Y:</label>
-                        <input type="number" id="targetY" step="0.5" value="0">
-                    </div>
-                    <div class="input-group">
-                        <label for="targetZ">Z:</label>
-                        <input type="number" id="targetZ" step="0.5" value="0">
-                    </div>
-                </div>
-            </div>
+        <!-- Rendering Area -->
+        <div id="canvas-container">
+            <canvas id="three-canvas"></canvas>
+            <div id="scene-info">Click on objects to select them</div>
         </div>
-
-        <!-- Lighting Controls -->
-        <div class="control-group">
-            <h3>Lights</h3>
-            <div class="property">
-                <label>Position:</label>
-                <div class="numeric-inputs">
-                    <div class="input-group">
-                        <label for="lightX">X:</label>
-                        <input type="number" id="lightX" step="0.5" value="5">
-                    </div>
-                    <div class="input-group">
-                        <label for="lightY">Y:</label>
-                        <input type="number" id="lightY" step="0.5" value="5">
-                    </div>
-                    <div class="input-group">
-                        <label for="lightZ">Z:</label>
-                        <input type="number" id="lightZ" step="0.5" value="5">
-                    </div>
-                </div>
-            </div>
-            <div class="property">
-                <div class="input-group">
-                    <label for="lightIntensity">Intensity:</label>
-                    <input type="number" id="lightIntensity" min="0" max="3" step="0.1" value="1">
-                </div>
-            </div>
-            <div class="property">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="enableShadows" checked>
-                    <label for="enableShadows">Enable Shadows</label>
-                </div>
-            </div>
-        </div>
-
-        <!-- Environment Controls -->
-        <div class="control-group">
-            <h3>Environment</h3>
-            <div class="property">
-                <div class="checkbox-group">
-                    <input type="checkbox" id="fog">
-                    <label for="fog">Enable Fog</label>
-                </div>
-            </div>
-            <div class="property">
-                <div class="input-group">
-                    <label for="fogDensity">Fog Density:</label>
-                    <input type="number" id="fogDensity" min="0.001" max="0.1" step="0.001" value="0.01">
-                </div>
-            </div>
-            <div class="property">
-                <div class="file-input-container">
-                    <label for="hdrUpload" class="file-input-label">HDR Environment</label>
-                    <input type="file" id="hdrUpload" accept=".hdr">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Rendering Area -->
-    <div id="canvas-container">
-        <canvas id="three-canvas"></canvas>
-        <div id="scene-info">Click on objects to select them</div>
     </div>
 
     <!-- Main script -->
