@@ -15,6 +15,8 @@ function initEditor() {
             this.lightCount = 0;
             this.raycaster = new THREE.Raycaster();
             this.mouse = new THREE.Vector2();
+            this.hdrLoaded = false;
+            this.hdrFileName = null;
         }
         
         // Add a 3D object to the scene
@@ -84,11 +86,6 @@ function initEditor() {
 
         // Select an object in the scene
         selectObject(id) {
-            // If previously selected, deselect
-            if (this.selectedObject) {
-                // No transform control anymore as per requirements
-            }
-
             if (id === null) {
                 this.selectedObject = null;
                 updateSceneInfo("Click on objects to select them");
@@ -427,7 +424,7 @@ function initEditor() {
         // Add texture to selected object
         addTexture(textureFile) {
             if (!this.selectedObject || this.selectedObject.type.includes('light')) {
-                updateSceneInfo("Cannot add texture: No object selected or selected object is a light");
+                updateSceneInfo('Please select an object first', true);
                 return;
             }
             
@@ -460,14 +457,14 @@ function initEditor() {
                     // Update UI
                     this.updateTexturesPanel();
                     
-                    updateSceneInfo(`Texture ${textureName} added successfully`);
+                    updateSceneInfo(`Texture ${textureName} added successfully`, false, 'success');
                 },
                 // Progress callback
                 undefined,
                 // Error callback
                 (error) => {
                     console.error('Error loading texture:', error);
-                    updateSceneInfo(`Error loading texture: ${error.message}`);
+                    updateSceneInfo(`Error loading texture: ${error.message}`, true);
                     URL.revokeObjectURL(url);
                 }
             );
@@ -780,13 +777,137 @@ function initEditor() {
             obj.rotation.copy(rotation);
             obj.scale.copy(scale);
             
-            updateSceneInfo(`Changed geometry to ${type}`);
+            updateSceneInfo(`Changed geometry to ${type}`, false, 'success');
+        }
+
+        // Update HDR Environment functions
+        loadHDREnvironment(file) {
+            if (!file) {
+                updateSceneInfo("No HDR file selected", true);
+                return;
+            }
+            
+            try {
+                const url = URL.createObjectURL(file);
+                
+                updateSceneInfo("Loading HDR environment...");
+
+                // Store information about the HDR file
+                this.hdrFileName = file.name;
+                
+                // Enable delete button
+                const deleteHdrBtn = document.getElementById('deleteHdr');
+                if (deleteHdrBtn) {
+                    deleteHdrBtn.disabled = false;
+                }
+                
+                rgbeLoader.load(
+                    url, 
+                    (texture) => {
+                        texture.mapping = THREE.EquirectangularReflectionMapping;
+                        scene.environment = texture;
+                        scene.background = texture;
+                        
+                        // Update all materials to use environment map
+                        this.objects.forEach(obj => {
+                            if (obj.object.material && !obj.type.includes('light')) {
+                                obj.object.material.envMap = texture;
+                                obj.object.material.needsUpdate = true;
+                            }
+                        });
+                        
+                        // Create a preview element
+                        this.updateHdrPreview(texture, this.hdrFileName);
+                        
+                        // Mark HDR as loaded
+                        this.hdrLoaded = true;
+                        
+                        // Clean up URL
+                        URL.revokeObjectURL(url);
+                        
+                        updateSceneInfo('HDR environment loaded', false, 'success');
+                    },
+                    // Progress callback
+                    (xhr) => {
+                        const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
+                        updateSceneInfo(`Loading HDR: ${percent}%`);
+                    },
+                    // Error callback
+                    (error) => {
+                        console.error('Error loading HDR:', error);
+                        updateSceneInfo('Error loading HDR environment', true);
+                        URL.revokeObjectURL(url);
+                        this.hdrLoaded = false;
+                        this.hdrFileName = null;
+                    }
+                );
+            } catch (error) {
+                console.error('Error creating HDR environment:', error);
+                updateSceneInfo('Error loading HDR environment', true);
+                this.hdrLoaded = false;
+                this.hdrFileName = null;
+            }
+        }
+
+        // Create a preview of the HDR environment
+        updateHdrPreview(texture, fileName) {
+            const hdrPreview = document.getElementById('hdrPreview');
+            if (!hdrPreview) return;
+            
+            // Clear existing content
+            hdrPreview.innerHTML = '';
+            
+            // Create status element
+            const statusEl = document.createElement('p');
+            statusEl.className = 'hdr-status';
+            statusEl.textContent = `Loaded: ${fileName}`;
+            
+            // Add preview
+            hdrPreview.appendChild(statusEl);
+        }
+
+        // Remove HDR environment
+        removeHDREnvironment() {
+            if (!this.hdrLoaded) {
+                updateSceneInfo("No HDR environment loaded", true);
+                return;
+            }
+            
+            // Reset scene environment
+            scene.environment = null;
+            scene.background = new THREE.Color(0x0c0c0c); // Reset to dark background
+            
+            // Update materials
+            this.objects.forEach(obj => {
+                if (obj.object.material && !obj.type.includes('light')) {
+                    obj.object.material.envMap = null;
+                    obj.object.material.needsUpdate = true;
+                }
+            });
+            
+            // Update UI
+            const hdrPreview = document.getElementById('hdrPreview');
+            if (hdrPreview) {
+                hdrPreview.innerHTML = '<p class="hdr-status">No HDR Map loaded</p>';
+            }
+            
+            // Disable delete button
+            const deleteHdrBtn = document.getElementById('deleteHdr');
+            if (deleteHdrBtn) {
+                deleteHdrBtn.disabled = true;
+            }
+            
+            // Reset state
+            this.hdrLoaded = false;
+            this.hdrFileName = null;
+            
+            updateSceneInfo("HDR environment removed", false, 'success');
         }
     }
 
     // Initialize scene, renderer, camera, and controls
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
+    scene.background = new THREE.Color(0x0c0c0c); // Darker background for dark theme
 
     // Get canvas element
     const canvas = document.getElementById('three-canvas');
@@ -822,25 +943,32 @@ function initEditor() {
     const cameraTarget = new THREE.Vector3(0, 0, 0);
     camera.lookAt(cameraTarget);
 
-    // Update scene info function with error handling
-    function updateSceneInfo(text, isError = false) {
+    // Update scene info function with error handling and success option
+    function updateSceneInfo(text, isError = false, type = 'info') {
         const infoEl = document.getElementById('scene-info');
         if (infoEl) {
             infoEl.textContent = text;
             
-            // Add fade-in animation
-            infoEl.classList.remove('animate-fade-in');
+            // Remove all state classes
+            infoEl.classList.remove('animate-fade-in', 'error', 'success');
+            
+            // Add appropriate class
+            if (isError) {
+                infoEl.classList.add('error');
+            } else if (type === 'success') {
+                infoEl.classList.add('success');
+            }
+            
+            // Add animation
             void infoEl.offsetWidth; // Trigger reflow to restart animation
             infoEl.classList.add('animate-fade-in');
             
-            // Apply error styling if needed
-            if (isError) {
-                infoEl.classList.add('error');
+            // Auto-hide after 3 seconds for success messages
+            if (type === 'success') {
                 setTimeout(() => {
-                    infoEl.classList.remove('error');
+                    infoEl.classList.remove('success');
+                    infoEl.textContent = 'Click on objects to select them';
                 }, 3000);
-            } else {
-                infoEl.classList.remove('error');
             }
         } else {
             console.warn('Scene info element not found');
@@ -854,8 +982,6 @@ function initEditor() {
     const orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
     orbitControls.dampingFactor = 0.05;
-
-    // Transform controls removed as per requirements
 
     // Setup lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -911,7 +1037,7 @@ function initEditor() {
     // Add a cube as initial object
     const boxGeometry = new THREE.BoxGeometry();
     const boxMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x0077ff,
+        color: 0x3d7eff, // Use theme color
         metalness: 0,
         roughness: 1
     });
@@ -925,56 +1051,6 @@ function initEditor() {
     
     // RGBELoader for HDR environment maps
     const rgbeLoader = new THREE.RGBELoader();
-    
-    // Function to load HDR environment
-    function loadHDREnvironment(file) {
-        if (!file) {
-            updateSceneInfo("No HDR file selected", true);
-            return;
-        }
-        
-        try {
-            const url = URL.createObjectURL(file);
-            
-            updateSceneInfo("Loading HDR environment...");
-            
-            rgbeLoader.load(
-                url, 
-                function(texture) {
-                    texture.mapping = THREE.EquirectangularReflectionMapping;
-                    scene.environment = texture;
-                    scene.background = texture;
-                    
-                    // Update all materials to use environment map
-                    sceneManager.objects.forEach(obj => {
-                        if (obj.object.material && !obj.type.includes('light')) {
-                            obj.object.material.envMap = texture;
-                            obj.object.material.needsUpdate = true;
-                        }
-                    });
-                    
-                    // Clean up URL
-                    URL.revokeObjectURL(url);
-                    
-                    updateSceneInfo('HDR environment loaded');
-                },
-                // Progress callback
-                function(xhr) {
-                    const percent = (xhr.loaded / xhr.total * 100).toFixed(0);
-                    updateSceneInfo(`Loading HDR: ${percent}%`);
-                },
-                // Error callback
-                function(error) {
-                    console.error('Error loading HDR:', error);
-                    updateSceneInfo('Error loading HDR environment', true);
-                    URL.revokeObjectURL(url);
-                }
-            );
-        } catch (error) {
-            console.error('Error creating HDR environment:', error);
-            updateSceneInfo('Error loading HDR environment', true);
-        }
-    }
     
     // Function to handle tab switching
     function setupTabs() {
@@ -1084,16 +1160,26 @@ function initEditor() {
                 console.warn('Add texture button not found');
             }
             
-            // HDR environment map upload
+            // HDR environment map upload and delete
             const hdrUpload = document.getElementById('hdrUpload');
+            const deleteHdrBtn = document.getElementById('deleteHdr');
+            
             if (hdrUpload) {
                 hdrUpload.addEventListener('change', (e) => {
                     if (e.target.files.length) {
-                        loadHDREnvironment(e.target.files[0]);
+                        sceneManager.loadHDREnvironment(e.target.files[0]);
                     }
                 });
             } else {
                 console.warn('HDR upload input not found');
+            }
+            
+            if (deleteHdrBtn) {
+                deleteHdrBtn.addEventListener('click', () => {
+                    sceneManager.removeHDREnvironment();
+                });
+            } else {
+                console.warn('Delete HDR button not found');
             }
             
             // Change geometry type
@@ -1281,10 +1367,10 @@ function initEditor() {
                     
                     // Update camera position and controls
                     camera.position.copy(orbitControls.object.position);
-                    camera.lookAt(orbitControls.target);
+                    camera.lookAt(cameraTarget);
                     orbitControls.object = camera;
                     
-                    updateSceneInfo(`Switched to ${e.target.value} camera`);
+                    updateSceneInfo(`Switched to ${e.target.value} camera`, false, 'success');
                 });
             }
             
@@ -1430,7 +1516,7 @@ function initEditor() {
                         }
                     });
                     
-                    updateSceneInfo(`Shadow quality set to ${e.target.value}`);
+                    updateSceneInfo(`Shadow quality set to ${e.target.value}`, false, 'success');
                 });
             }
             
@@ -1508,7 +1594,7 @@ function initEditor() {
                         break;
                 }
                 
-                updateSceneInfo(`Added new ${type.replace('light-', '')} light`);
+                updateSceneInfo(`Added new ${type.replace('light-', '')} light`, false, 'success');
             } else {
                 // Create a mesh
                 let geometry;
@@ -1534,7 +1620,7 @@ function initEditor() {
                 }
                 
                 const material = new THREE.MeshStandardMaterial({
-                    color: 0x0077ff,
+                    color: 0x3d7eff, // Use theme color
                     metalness: 0,
                     roughness: 1
                 });
@@ -1554,7 +1640,7 @@ function initEditor() {
                 // Select the new object
                 sceneManager.selectObject(objData.id);
                 
-                updateSceneInfo(`Added new ${type}`);
+                updateSceneInfo(`Added new ${type}`, false, 'success');
             }
             
             return object;
@@ -1618,7 +1704,7 @@ function initEditor() {
                     // Clean up URL
                     URL.revokeObjectURL(url);
                     
-                    updateSceneInfo(`Model ${file.name} imported successfully`);
+                    updateSceneInfo(`Model ${file.name} imported successfully`, false, 'success');
                 }, 
                 // Progress callback
                 (xhr) => {
@@ -1656,7 +1742,7 @@ function initEditor() {
             
             URL.revokeObjectURL(url);
             
-            updateSceneInfo('Scene exported as JSON');
+            updateSceneInfo('Scene exported as JSON', false, 'success');
         } catch (error) {
             console.error('Error exporting scene:', error);
             updateSceneInfo('Error exporting scene', true);
@@ -1800,7 +1886,7 @@ function initEditor() {
             // Copy to clipboard
             navigator.clipboard.writeText(code)
                 .then(() => {
-                    updateSceneInfo('Three.js code copied to clipboard!');
+                    updateSceneInfo('Three.js code copied to clipboard!', false, 'success');
                 })
                 .catch(err => {
                     console.error('Could not copy text: ', err);
@@ -1811,7 +1897,7 @@ function initEditor() {
                     textarea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textarea);
-                    updateSceneInfo('Three.js code copied to clipboard!');
+                    updateSceneInfo('Three.js code copied to clipboard!', false, 'success');
                 });
         } catch (error) {
             console.error('Error generating code:', error);
@@ -1857,5 +1943,5 @@ function initEditor() {
     animate();
     
     // Show ready message
-    updateSceneInfo('3D Scene Editor ready. Click on objects to select them.');
+    updateSceneInfo('3D Scene Editor ready. Click on objects to select them');
 }
